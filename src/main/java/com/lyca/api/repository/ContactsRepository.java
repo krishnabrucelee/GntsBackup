@@ -25,4 +25,7 @@ public interface ContactsRepository extends JpaRepository<Contacts, Integer> {
 	@Query("select contact from Contacts contact where contact.mobileNumber = :mobileNumber and contact.baseUser.userId = :userId ")
 	List<Contacts> getDuplicateContactByBaseUserId(@Param("mobileNumber") String mobileNumber, @Param("userId") Integer userId);
 
+	@Query("select contact from Contacts contact where contact.mobileNumber = :mobileNumber and contact.baseUser.userId = :baseUserId and contact.contactUser.userId = :callToUserId")
+	Contacts getContactsByCallUsersAndMobile(@Param("baseUserId") Integer baseUserId, @Param("mobileNumber") String mobileNumber, @Param("callToUserId") Integer callToUserId);
+
 }

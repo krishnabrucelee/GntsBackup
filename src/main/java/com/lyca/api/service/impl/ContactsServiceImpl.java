@@ -25,6 +25,7 @@ import com.lyca.api.repository.ContactsRepository;
 import com.lyca.api.service.ContactsService;
 import com.lyca.api.service.CountryService;
 import com.lyca.api.service.InvitieService;
+import com.lyca.api.service.PusherNotificationService;
 import com.lyca.api.service.UserService;
 import com.lyca.api.model.Country;
 import com.lyca.api.model.Invities;
@@ -50,6 +51,9 @@ public class ContactsServiceImpl implements ContactsService {
 	@Autowired
 	private CountryService countryService;
 
+	@Autowired
+	private PusherNotificationService pusherNotificationService;
+	
 	@Autowired
 	@Qualifier("responseMessage")
 	private Properties responseMessage;
@@ -140,6 +144,14 @@ public class ContactsServiceImpl implements ContactsService {
 							} else {
 								invitieDetails.setInviteeStatus(Invities.InviteeStatus.PENDING);
 								contactsDetails.setInviteeStatus(Contacts.InviteeStatus.PENDING);
+								// Pusher
+								Integer inviteCount = invitieService.getMyInvitieListByMobileNumberCount(contacts);
+								JSONObject jsonPushMsg = new JSONObject();
+								jsonPushMsg.put("message", "You have an invite request");
+								jsonPushMsg.put("inviteCount", inviteCount);
+								JSONObject jsonpusher = pusherNotificationService.pushMessasge(contacts.get("mobileNumber").toString(),
+										"INVITE", jsonPushMsg);
+								status.put("pusherResponse", jsonpusher);
 							}
 							invitieDetails.setInvitationCode(UUID.randomUUID().toString().substring(0, 6));
 							invitieDetails.setCreatedDateTime(new Date());
@@ -149,6 +161,9 @@ public class ContactsServiceImpl implements ContactsService {
 							addInvitieDetails.add(invitieDetails);
 							contactsDetails.setInvities(addInvitieDetails);
 							status.put("invitieResponseMessage", responseMessage.get("invitie.added"));
+							
+							
+							
 						}
 					} else {
 						status.put("responseStatus", false);
@@ -230,28 +245,40 @@ public class ContactsServiceImpl implements ContactsService {
 			if (contacts.get("contactId") != null) {
 
 				Contacts contactsDetails = contactsRepository.findOne((Integer) contacts.get("contactId"));
-				if (contacts.get("contactBlocked") != null && (Boolean) contacts.get("contactBlocked") == true
-						&& !contacts.get("contactBlocked").toString().isEmpty()) {
-					contactsDetails.setContactBlocked((Boolean) contacts.get("contactBlocked"));
-					status.put("responseMessage", responseMessage.get("contactBlock"));
-				} else if (contacts.get("contactBlocked") != null
-						&& (Boolean) contacts.get("contactBlocked") == false
-						&& !contacts.get("contactBlocked").toString().isEmpty()) {
-					contactsDetails.setContactBlocked((Boolean) contacts.get("contactBlocked"));
-					status.put("responseMessage", responseMessage.get("contactUnBlock"));
+				if (contactsDetails != null) {
+					if (contacts.get("contactBlocked") != null) {
+						if (contacts.get("contactBlocked") != null && (Boolean) contacts.get("contactBlocked") == true
+								&& !contacts.get("contactBlocked").toString().isEmpty()) {
+							contactsDetails.setContactBlocked((Boolean) contacts.get("contactBlocked"));
+							status.put("responseMessage", responseMessage.get("contactBlock"));
+						} else if (contacts.get("contactBlocked") != null
+								&& (Boolean) contacts.get("contactBlocked") == false
+								&& !contacts.get("contactBlocked").toString().isEmpty()) {
+							contactsDetails.setContactBlocked((Boolean) contacts.get("contactBlocked"));
+							status.put("responseMessage", responseMessage.get("contactUnBlock"));
+						} else {
+							status.put("responseStatus", false);
+							status.put("responseMessage", responseMessage.get("id.or.key/value.is.null.or.incorrect"));
+						}
+					}
+
+					if (contacts.get("contactRemoved") != null) {
+						if (contacts.get("contactRemoved") != null
+								&& !contacts.get("contactRemoved").toString().isEmpty()) {
+							contactsDetails.setContactRemoved((Boolean) contacts.get("contactRemoved"));
+							status.put("responseMessage", responseMessage.get("contactRemove"));
+						} else {
+							status.put("responseStatus", false);
+							status.put("responseMessage", responseMessage.get("id.or.key/value.is.null.or.incorrect"));
+
+						}
+					}
+					contactsDetails.setUpdatedDateTime(new Date());
+					contactsRepository.save(contactsDetails);
 				} else {
 					status.put("responseStatus", false);
 					status.put("responseMessage", responseMessage.get("id.or.key/value.is.null.or.incorrect"));
 				}
-				if (contacts.get("contactRemoved") != null && !contacts.get("contactRemoved").toString().isEmpty()) {
-					contactsDetails.setContactRemoved((Boolean) contacts.get("contactRemoved"));
-					status.put("responseMessage", responseMessage.get("contactRemove"));
-				} else {
-					status.put("responseStatus", false);
-					status.put("responseMessage", responseMessage.get("id.or.key/value.is.null.or.incorrect"));
-				}
-				contactsDetails.setUpdatedDateTime(new Date());
-				contactsRepository.save(contactsDetails);
 			} else {
 				status.put("responseStatus", false);
 				status.put("responseMessage", responseMessage.get("id.or.key/value.is.null.or.incorrect"));
@@ -389,5 +416,10 @@ public class ContactsServiceImpl implements ContactsService {
 	public List<Contacts> findAll() throws Exception {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	@Override
+	public Contacts getContactsByCallUsersAndMobile(Integer baseUserId, String mobileNumber, Integer callToUserId) {
+		return contactsRepository.getContactsByCallUsersAndMobile(baseUserId, mobileNumber, callToUserId);
 	}
 }

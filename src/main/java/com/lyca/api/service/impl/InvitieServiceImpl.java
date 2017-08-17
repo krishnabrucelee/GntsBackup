@@ -74,7 +74,7 @@ public class InvitieServiceImpl implements InvitieService {
 				if (invitie.get("inviteeStatus").toString().equals(Invities.InviteeStatus.REJECTED.toString())) {
 					invitieDetails.setInviteeStatus(Invities.InviteeStatus.REJECTED);
 					invitieRepository.save(invitieDetails);
-					JSONObject contact = contactsService.addContacts(invitie);
+					//JSONObject contact = contactsService.addContacts(invitie);
 				}
 
 				if (invitie.get("inviteeStatus").toString().equals(Invities.InviteeStatus.PENDING.toString())) {
@@ -267,6 +267,30 @@ public class InvitieServiceImpl implements InvitieService {
 	public List<Invities> findAll() throws Exception {
 		// TODO Auto-generated method stub
 		return null;
+	}
+
+	@Override
+	public Integer getMyInvitieListByMobileNumberCount(JSONObject invitie) {
+		JSONObject status = new JSONObject();
+		status.put("responseStatus", true);
+		List<Invities> invitieList = new ArrayList<>();
+		if (invitie.get("mobileNumber") != null && !invitie.get("mobileNumber").toString().isEmpty()) {
+
+			try {
+				invitieList = invitieRepository.getMyInvitieListByMobileNumber(invitie.get("mobileNumber").toString(),
+						Invities.InviteeStatus.PENDING);
+				if (!invitieList.isEmpty()) {
+					return invitieList.size();
+				} 
+			} catch (Exception e) {
+				e.printStackTrace();
+				status.put("responseStatus", false);
+				status.put("Error", e.getMessage());
+			}
+		} else {
+			status.put("responseMessage", responseMessage.get("mobile.number.cannot.be.blank"));
+		}
+		return invitieList.size();
 	}
 
 }

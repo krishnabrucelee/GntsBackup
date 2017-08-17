@@ -3,8 +3,14 @@
  */
 package com.lyca.api.service;
 
+import java.util.List;
+
 import org.json.simple.JSONObject;
+import org.springframework.data.domain.PageRequest;
+
 import com.lyca.api.model.CallDetails;
+import com.lyca.api.model.CallLog;
+import com.lyca.api.model.CallLog.CallStatus;
 import com.lyca.api.util.CRUDService;
 
 /**
@@ -51,4 +57,6 @@ public interface CallDetailsService extends CRUDService<CallDetails> {
 	 * @return
 	 */
 	public JSONObject getCallDetailsById(JSONObject callDetails);
+
+	public List<CallDetails> getFavlist(CallStatus groupcall, Integer userId, PageRequest pageRequest);
 }

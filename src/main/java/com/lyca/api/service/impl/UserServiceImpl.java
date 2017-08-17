@@ -102,7 +102,7 @@ public class UserServiceImpl implements UserService {
 							userDetails.setCountry(countryDetails);
 						}
 						User userr = getUserByMobileNumber(user.get("mobileNumber").toString());
-						if (userr != null) {
+						if (userr != null && userr.getStbUser() && userr.getLycaSubscriberId() != null) {
 							userr.setOnlineStatus(User.OnlineStatus.AVAILABLE);
 							userDetails.setProfileStatus("AVAILABLE");
 							userr.setOtp(UUID.randomUUID().toString().substring(0, 6));
@@ -220,7 +220,8 @@ public class UserServiceImpl implements UserService {
 		status.put("responseStatus", true);
 		try {
 			if (user.get("userId") != null && !user.get("userId").toString().isEmpty()) {
-				if (user.get("onlineStatus") != null && !user.get("onlineStatus").toString().isEmpty()) {
+				if ((user.get("onlineStatus") != null && !user.get("onlineStatus").toString().isEmpty())
+						|| (user.get("profilePicUrl") != null)) {
 					User userDetails = find((Integer) user.get("userId"));
 					if (user.get("firstName") != null) {
 						userDetails.setFirstName(user.get("firstName").toString());

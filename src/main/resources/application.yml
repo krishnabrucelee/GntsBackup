@@ -1,6 +1,6 @@
 ---
 server:
-  port: 1917
+  port: 8080
   contextPath: /LycaMediaApiServer
 ---
 spring:

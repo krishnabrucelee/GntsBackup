@@ -10,6 +10,7 @@ import java.util.Properties;
 import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -188,6 +189,7 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 
 				Integer callDetailsId = Integer.parseInt(callDetails.get("callDetailsId").toString());
 				Integer callUserId = null;
+				// call end
 				if (callDetails.get("callTo") != null
 						&& (!callDetails.get("callStatus").toString().equals(CallDetails.CallStatus.REJECTED.toString())
 								&& !callDetails.get("callStatus").toString()
@@ -215,6 +217,29 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 					callLogDetails.setUpdatedDateTime(new Date());
 
 					if (callDetails.get("callStatus").toString().equals(CallLog.CallStatus.MISSEDCALL.toString())) {
+						Integer callToId = Integer.parseInt(callDetails.get("callTo").toString());
+						User callToUser = userService.find(callToId);
+						CallDetails callDetailsObj1 = find(callDetailsId);
+						if (callToUser != null && callDetailsObj1 != null) {
+							CallLog callLogUser = callLogService.getCallLogByCallIdAndUserId(callDetailsObj1.getId(),
+									callToId);
+							if (callLogUser == null) {
+								JSONObject jsonObj1 = new JSONObject();
+								jsonObj1.put("callStatus", CallLog.CallStatus.MISSEDCALL);
+								jsonObj1.put("callDetailsUpdateFlag", true);
+								jsonObj1.put("inCallTime", new java.sql.Timestamp(System.currentTimeMillis()));
+								jsonObj1.put("outCallTime", new java.sql.Timestamp(System.currentTimeMillis()));
+								jsonObj1.put("updatedDateTime", new Date());
+								jsonObj1.put("callDetails", callDetailsObj1);
+								jsonObj1.put("user", callToUser);
+								callLogService.addCallLog(jsonObj1);
+							} else {
+								callLogUser.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
+								callLogUser.setUpdatedDateTime(new Date());
+								callLogService.update(callLogUser);
+							}
+
+						}
 						callLogDetails.setCallStatus(CallLog.CallStatus.MISSEDCALL);
 						jsonObj.put("responseStatus", true);
 						jsonObj.put("responseMessage", "Missed Call.");
@@ -232,6 +257,29 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 					}
 
 					if (callDetails.get("callStatus").toString().equals(CallLog.CallStatus.REJECTED.toString())) {
+						Integer callToId = Integer.parseInt(callDetails.get("callTo").toString());
+						User callToUser = userService.find(callToId);
+						CallDetails callDetailsObj1 = find(callDetailsId);
+						if (callToUser != null && callDetailsObj1 != null) {
+							CallLog callLogUser = callLogService.getCallLogByCallIdAndUserId(callDetailsObj1.getId(),
+									callToId);
+							if (callLogUser == null) {
+								JSONObject jsonObj1 = new JSONObject();
+								jsonObj1.put("callStatus", CallLog.CallStatus.REJECTED);
+								jsonObj1.put("callDetailsUpdateFlag", true);
+								jsonObj1.put("inCallTime", new java.sql.Timestamp(System.currentTimeMillis()));
+								jsonObj1.put("outCallTime", new java.sql.Timestamp(System.currentTimeMillis()));
+								jsonObj1.put("updatedDateTime", new Date());
+								jsonObj1.put("callDetails", callDetailsObj1);
+								jsonObj1.put("user", callToUser);
+								callLogService.addCallLog(jsonObj1);
+							} else {
+								callLogUser.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
+								callLogUser.setUpdatedDateTime(new Date());
+								callLogService.update(callLogUser);
+							}
+
+						}
 						callLogDetails.setCallStatus(CallLog.CallStatus.REJECTED);
 						jsonObj.put("responseStatus", true);
 						jsonObj.put("responseMessage", "Call Rejected.");
@@ -264,9 +312,10 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 											for (CallLog callL : callLogDetailsList) {
 												if (callL.getUser().getUserId().intValue() != userId) {
 													JSONObject jsonPushMsg = new JSONObject();
-													
+
 													jsonPushMsg.put("callDetailsId", callDetailsId);
 													jsonPushMsg.put("message", "Call End");
+													jsonPushMsg.put("callUsersCount", callLogDetailsList.size());
 													JSONObject jsonpusher = pusherNotificationService.pushMessasge(
 															callL.getUser().getMobileNumber(), "CALLEND", jsonPushMsg);
 													jsonObj.put("pusherResponse", jsonpusher);
@@ -276,11 +325,13 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 											for (CallLog callL : callLogDetailsList) {
 												if (callL.getUser().getUserId().intValue() == userId) {
 													JSONObject jsonPushMsg = new JSONObject();
-													
+
 													jsonPushMsg.put("callDetailsId", callDetailsId);
 													jsonPushMsg.put("message", "Call End");
+													jsonPushMsg.put("callUsersCount", callLogDetailsList.size());
 													JSONObject jsonpusher = pusherNotificationService.pushMessasge(
-															callDetailsObj.getCallTo().getMobileNumber(), "CALLEND", jsonPushMsg);
+															callDetailsObj.getCallTo().getMobileNumber(), "CALLEND",
+															jsonPushMsg);
 													jsonObj.put("pusherResponse", jsonpusher);
 												}
 											}
@@ -304,7 +355,6 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 												callLogDetails.getCallDetails().getCallerId().getUserId());
 
 									}
-
 									if (callLogUpdate != null) {
 										System.out.println("callLog updated.");
 										jsonObj.put("responseStatus", true);
@@ -366,42 +416,50 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 				calleruser = userService.find(callerId);
 
 				callTo = Integer.parseInt(callDetails.get("callTo").toString());
-				callTouser = userService.find(callTo);
+				CallLog checkActiveCallTo = callLogService.checkActiveCallFromOutTime(callTo);
+				if (checkActiveCallTo == null) {
 
-				if (calleruser != null && callTouser != null) {
-					// Check stb user and user calling only to his contact.
-					if (calleruser.getStbUser() == true || callTouser.getStbUser() == true) {
-						Contacts contact = contactsService.checkContactToCallFromCaller(calleruser.getUserId(),
-								callTouser.getMobileNumber());
-						if (contact != null) {
-							try {
-								CallDetails callDetailsDetails = new CallDetails();
-								callDetailsDetails.setCallerId(calleruser);
-								callDetailsDetails.setCallTo(callTouser);
-								callDetailsDetails.setCallStatus(CallStatus.CALLING);
-								callDetailsDetails.setCreatedDateTime(new Date());
-								CallDetails callObj = save(callDetailsDetails);
-								status.put("callDetails", callObj);
-								status.put("responseStatus", true);
-								status.put("responseMessage", "CallDetails details saved");
+					callTouser = userService.find(callTo);
 
-							} catch (Exception e) {
-								e.printStackTrace();
-								status.put("status", false);
+					if (calleruser != null && callTouser != null) {
+						// Check stb user and user calling only to his contact.
+						if (calleruser.getStbUser() == true || callTouser.getStbUser() == true) {
+							Contacts contact = contactsService.checkContactToCallFromCaller(calleruser.getUserId(),
+									callTouser.getMobileNumber());
+							if (contact != null) {
+								try {
+									CallDetails callDetailsDetails = new CallDetails();
+									callDetailsDetails.setCallerId(calleruser);
+									callDetailsDetails.setCallTo(callTouser);
+									callDetailsDetails.setCallStatus(CallStatus.CALLING);
+									callDetailsDetails.setCreatedDateTime(new Date());
+									CallDetails callObj = save(callDetailsDetails);
+									status.put("callDetails", callObj);
+									status.put("responseStatus", true);
+									status.put("responseMessage", "CallDetails details saved");
+
+								} catch (Exception e) {
+									e.printStackTrace();
+									status.put("status", false);
+								}
+							} else {
+								status.put("responseStatus", false);
+								status.put("responseMessage", responseMessage.get("calling.user.not.in.your.contact"));
+								return status;
 							}
 						} else {
 							status.put("responseStatus", false);
-							status.put("responseMessage", responseMessage.get("calling.user.not.in.your.contact"));
+							status.put("responseMessage", responseMessage.get("anyone.user.must.be.an.Lyca.STB.user"));
 							return status;
 						}
 					} else {
 						status.put("responseStatus", false);
-						status.put("responseMessage", responseMessage.get("anyone.user.must.be.an.Lyca.STB.user"));
+						status.put("responseMessage", responseMessage.get("no.user.in.Lyca.database"));
 						return status;
 					}
 				} else {
 					status.put("responseStatus", false);
-					status.put("responseMessage", responseMessage.get("no.user.in.Lyca.database"));
+					status.put("responseMessage", responseMessage.get("line.busy"));
 					return status;
 				}
 			} else {
@@ -511,6 +569,12 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 	@Override
 	public List<CallDetails> findAll() throws Exception {
 		// TODO Auto-generated method stub
+		return null;
+	}
+
+	@Override
+	public List<CallDetails> getFavlist(com.lyca.api.model.CallLog.CallStatus groupcall, Integer userId,
+			PageRequest pageRequest) {
 		return null;
 	}
 }

@@ -3,6 +3,8 @@
  */
 package com.lyca.api.service.impl;
 
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
@@ -10,13 +12,18 @@ import java.util.Properties;
 import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lyca.api.model.CallLog;
+import com.lyca.api.model.Contacts;
 import com.lyca.api.repository.CallLogRepository;
 import com.lyca.api.service.CallDetailsService;
 import com.lyca.api.service.CallLogService;
+import com.lyca.api.service.ContactsService;
 import com.lyca.api.util.DateConvertUtil;
 import com.lyca.api.model.User;
 import com.lyca.api.model.CallDetails;
@@ -34,6 +41,9 @@ public class CallLogServiceImpl implements CallLogService {
 
 	@Autowired
 	private CallDetailsService callDetailsService;
+
+	@Autowired
+	private ContactsService contactsService;
 
 	@Autowired
 	@Qualifier("responseMessage")
@@ -143,87 +153,59 @@ public class CallLogServiceImpl implements CallLogService {
 	@Override
 	public JSONObject getCallLogById(JSONObject callLog) {
 		JSONObject status = new JSONObject();
-		status.put("responseStatus", true);
 		List<CallLog> callLogList = null;
 		List<CallLog> callLogDetailsIdList = null;
-		List<CallLog> favList = null;
+//		List<CallLog> favList = null;
 		List<JSONObject> callList = new ArrayList<>();
 		List<JSONObject> favCallList = new ArrayList<>();
 		if (callLog.get("userId") != null && callLog.get("favCount") != null) {
 
 			Integer userId = Integer.parseInt(callLog.get("userId").toString());
 			Integer favCount = Integer.parseInt(callLog.get("favCount").toString());
+			DateFormat f = new SimpleDateFormat("yyyy-MM-dd' 'HH:mm:ss' '");
 			try {
 				callLogList = callLogRepository.getUserFromCallLog(userId);
-				callLogDetailsIdList = callLogRepository.getCallDetailsIdByUserId(CallLog.CallStatus.GROUPCALL, userId);
+//				callLogDetailsIdList = callLogRepository.getCallDetailsIdByUserId(CallLog.CallStatus.GROUPCALL, userId, new PageRequest(0,5));
+				
+				List<Object[]> favList = callLogRepository.getFavList(CallDetails.CallStatus.GROUPCALL, userId, new PageRequest(0,5));
+				System.out.println(favList);
 				if (!callLogList.isEmpty()) {
 					for (CallLog callLogDetails : callLogList) {
 
 						JSONObject callLogJson = new JSONObject();
 						if (callLogDetails.getUser().getUserId() != callLogDetails.getCallDetails().getCallerId()
 								.getUserId()) {
-							// Outgoing
+							//Missed call & Accept
 							User callUser = callLogDetails.getCallDetails().getCallerId();
+							Contacts contactUser = contactsService.getContactsByCallUsersAndMobile(userId, callUser.getMobileNumber(), callUser.getUserId());
 							callLogJson.put("userId", callUser.getUserId());
 							callLogJson.put("mobileNumber", callUser.getMobileNumber());
-							callLogJson.put("firstName", callUser.getFirstName());
-							callLogJson.put("lastName", callUser.getLastName());
-							callLogJson.put("inCallTime", callLogDetails.getInCallTime());
-							callLogJson.put("outCallTime", callLogDetails.getOutCallTime());
+							if (contactUser != null) {
+								callLogJson.put("nickName", contactUser.getNickName());
+							} else {
+								callLogJson.put("firstName", callUser.getFirstName());
+								callLogJson.put("lastName", callUser.getLastName());
+							}
+							if (callLogDetails.getInCallTime() != null) {
+								Date date = new Date(callLogDetails.getInCallTime().getTime());
+								callLogJson.put("inCallTime", f.format(date));
+							} else {
+								callLogJson.put("inCallTime", callLogDetails.getInCallTime());
+							}
+							
+							if (callLogDetails.getOutCallTime() != null) {
+								Date date2 = new Date(callLogDetails.getOutCallTime().getTime());
+								callLogJson.put("outCallTime", f.format(date2));
+							} else {
+								callLogJson.put("outCallTime", callLogDetails.getOutCallTime());
+							}
 							callLogJson.put("lycaSubscriberId", callUser.getLycaSubscriberId());
 							if (callLogDetails.getOutCallTime() != null && callLogDetails.getInCallTime() != null) {
-								
-//								
-//								Long hh = callLogDetails.getOutCallTime().getTime() - callLogDetails.getInCallTime().getTime();
-//								
-//								int seconds = (int) (hh / 1000) % 60 ;
-//								int minutes = (int) ((hh / (1000*60)) % 60);
-//								int hours   = (int) ((hh / (1000*60*60)) % 24);
-								
 								callLogJson.put("callDuration", 
 										DateConvertUtil.getDateDiff(callLogDetails.getOutCallTime().toString(), 
 												callLogDetails.getInCallTime().toString()));
 							}
 							callLogJson.put("profileStatus", callUser.getProfileStatus());
-							if (callLogDetails.getCallDetails().getCallStatus() != null) {
-								if (callLogDetails.getCallDetails().getCallStatus().toString().equals(CallLog.CallStatus.GROUPCALL.toString())) {
-									callLogJson.put("callStatus", callLogDetails.getCallDetails().getCallStatus());
-								} else {
-									callLogJson.put("callStatus", "OUTGOING");
-								}
-							} else if (callLogDetails.getCallStatus() != null) {
-								callLogJson.put("callStatus", callLogDetails.getCallStatus());
-							}
-							if (callUser.getCountry() != null) {
-								callLogJson.put("countryId", callUser.getCountry().getCountryId());
-								callLogJson.put("countryIsdCode", callUser.getCountry().getCountryIsdCode());
-								callLogJson.put("countryName", callUser.getCountry().getCountryName());
-							}
-							callLogJson.put("onlineStatus", callUser.getOnlineStatus());
-							callList.add(callLogJson);
-						} else {
-							//Missed call & Accept
-							User callToUser = callLogDetails.getCallDetails().getCallTo();
-							callLogJson.put("userId", callToUser.getUserId());
-							callLogJson.put("mobileNumber", callToUser.getMobileNumber());
-							callLogJson.put("firstName", callToUser.getFirstName());
-							callLogJson.put("lastName", callToUser.getLastName());
-							callLogJson.put("inCallTime", callLogDetails.getInCallTime());
-							callLogJson.put("outCallTime", callLogDetails.getOutCallTime());
-							callLogJson.put("lycaSubscriberId", callToUser.getLycaSubscriberId());
-							if (callLogDetails.getOutCallTime() != null && callLogDetails.getInCallTime() != null) {
-//								callLogJson.put("callDuration", callLogDetails.getOutCallTime().getTime()
-//										- callLogDetails.getInCallTime().getTime());
-//								Long hh = callLogDetails.getOutCallTime(). - callLogDetails.getInCallTime().getTime();
-//								
-//								int seconds = (int) (hh / 1000) % 60 ;
-//								int minutes = (int) ((hh / (1000*60)) % 60);
-								
-								callLogJson.put("callDuration", 
-										DateConvertUtil.getDateDiff(callLogDetails.getOutCallTime().toString(), 
-												callLogDetails.getInCallTime().toString()));
-							}
-							callLogJson.put("profileStatus", callToUser.getProfileStatus());
 							if (callLogDetails.getCallStatus() != null) {
 								if (callLogDetails.getCallStatus().toString().equals(CallLog.CallStatus.MISSEDCALL.toString())) {
 								callLogJson.put("callStatus", callLogDetails.getCallStatus());
@@ -233,6 +215,59 @@ public class CallLogServiceImpl implements CallLogService {
 									callLogJson.put("callStatus", "INCOMING");
 								}
 							}
+							
+							
+							if (callUser.getCountry() != null) {
+								callLogJson.put("countryId", callUser.getCountry().getCountryId());
+								callLogJson.put("countryIsdCode", callUser.getCountry().getCountryIsdCode());
+								callLogJson.put("countryName", callUser.getCountry().getCountryName());
+							}
+							callLogJson.put("onlineStatus", callUser.getOnlineStatus());
+							callList.add(callLogJson);
+						} else {
+							// Outgoing
+							User callToUser = callLogDetails.getCallDetails().getCallTo();
+							Contacts contactUser = contactsService.getContactsByCallUsersAndMobile(userId, callToUser.getMobileNumber(), callToUser.getUserId());
+							callLogJson.put("userId", callToUser.getUserId());
+							callLogJson.put("mobileNumber", callToUser.getMobileNumber());
+							if (contactUser != null) {
+								callLogJson.put("nickName", contactUser.getNickName());
+							} else {
+								callLogJson.put("firstName", callToUser.getFirstName());
+								callLogJson.put("lastName", callToUser.getLastName());
+							}
+							callLogJson.put("userId", callToUser.getUserId());
+							callLogJson.put("mobileNumber", callToUser.getMobileNumber());
+//							
+							if (callLogDetails.getInCallTime() != null) {
+								Date date = new Date(callLogDetails.getInCallTime().getTime());
+								callLogJson.put("inCallTime", f.format(date));
+							} else {
+								callLogJson.put("inCallTime", callLogDetails.getInCallTime());
+							}
+							
+							if (callLogDetails.getOutCallTime() != null) {
+								Date date2 = new Date(callLogDetails.getOutCallTime().getTime());
+								callLogJson.put("outCallTime", f.format(date2));
+							} else {
+								callLogJson.put("outCallTime", callLogDetails.getOutCallTime());
+							}
+							callLogJson.put("lycaSubscriberId", callToUser.getLycaSubscriberId());
+							if (callLogDetails.getOutCallTime() != null && callLogDetails.getInCallTime() != null) {
+								callLogJson.put("callDuration", 
+										DateConvertUtil.getDateDiff(callLogDetails.getOutCallTime().toString(), 
+												callLogDetails.getInCallTime().toString()));
+							}
+							callLogJson.put("profileStatus", callToUser.getProfileStatus());
+							if (callLogDetails.getCallDetails().getCallStatus() != null) {
+								if (callLogDetails.getCallDetails().getCallStatus().toString().equals(CallLog.CallStatus.GROUPCALL.toString())) {
+									callLogJson.put("callStatus", callLogDetails.getCallDetails().getCallStatus());
+								} else {
+									callLogJson.put("callStatus", "OUTGOING");
+								}
+							} else if (callLogDetails.getCallStatus() != null) {
+								callLogJson.put("callStatus", callLogDetails.getCallStatus());
+							}
 							if (callToUser.getCountry() != null) {
 								callLogJson.put("countryId", callToUser.getCountry().getCountryId());
 								callLogJson.put("countryIsdCode", callToUser.getCountry().getCountryIsdCode());
@@ -241,61 +276,87 @@ public class CallLogServiceImpl implements CallLogService {
 							callLogJson.put("onlineStatus", callToUser.getOnlineStatus());
 							callList.add(callLogJson);
 						}
-
+						status.put("responseStatus", true);
 						status.put("callLog", callList);
 						status.put("responseCallLogMessage", "Call log list");
 					}
-					if (!callLogDetailsIdList.isEmpty()) {
-
-						for (CallLog callLogDetails : callLogDetailsIdList) {
-							favList = callLogRepository.getCallLogFav(CallLog.CallStatus.GROUPCALL,
-									callLogDetails.getCallDetails().getId(), userId);
+//
+//						for (CallLog callLogDetails : callLogDetailsIdList) {
+//							favList = callLogRepository.getCallLogFav(CallLog.CallStatus.GROUPCALL,
+//									callLogDetails.getCallDetails().getId(), userId, new PageRequest(0,5));
 
 							if (!favList.isEmpty()) {
-								for (CallLog favLogDetails : favList) {
+								for (Object[] callLogDetails : favList) {
 
 									JSONObject callLogJson = new JSONObject();
 
-									callLogJson.put("userId", favLogDetails.getUser().getUserId());
-									callLogJson.put("callStatus", favLogDetails.getCallStatus());
-									callLogJson.put("firstName", favLogDetails.getUser().getFirstName());
-									callLogJson.put("lastName", favLogDetails.getUser().getLastName());
-									callLogJson.put("mobileNumber", favLogDetails.getUser().getMobileNumber());
-									callLogJson.put("profileStatus", favLogDetails.getUser().getProfileStatus());
-									callLogJson.put("onlineStatus", favLogDetails.getUser().getOnlineStatus());
-									callLogJson.put("countryId", favLogDetails.getUser().getCountry().getCountryId());
-									callLogJson.put("countryIsdCode",
-											favLogDetails.getUser().getCountry().getCountryIsdCode());
-									callLogJson.put("countryName",
-											favLogDetails.getUser().getCountry().getCountryName());
-									// callLogJson.put("callCount", favLogDetails.getCallDetails().);
+									callLogJson.put("userId", String.valueOf(callLogDetails[1]));
+									callLogJson.put("callStatus", String.valueOf(callLogDetails[2]));
+									callLogJson.put("firstName", String.valueOf(callLogDetails[3]));
+									callLogJson.put("lastName", String.valueOf(callLogDetails[4]));
+									callLogJson.put("mobileNumber", String.valueOf(callLogDetails[5]));
+									callLogJson.put("profileStatus", String.valueOf(callLogDetails[6]));
+									callLogJson.put("onlineStatus", String.valueOf(callLogDetails[7]));
+									callLogJson.put("countryId", String.valueOf(callLogDetails[8]));
+									callLogJson.put("countryIsdCode", String.valueOf(callLogDetails[9]));
+									callLogJson.put("countryName", String.valueOf(callLogDetails[10]));
+									callLogJson.put("callCount", String.valueOf(callLogDetails[11]));
+									callLogJson.put("nickName", String.valueOf(callLogDetails[12]));
+
 									favCallList.add(callLogJson);
+									status.put("responseStatus", true);
+									status.put("favoriteList", favCallList);
+									status.put("responseFavMessage", "Favorite list");
+
 								}
-							}
-							status.put("favoriteList", favCallList);
-							status.put("responseFavMessage", "Favorite list");
-						}
+//								for (CallLog favLogDetails : favList) {
+//
+//									JSONObject callLogJson = new JSONObject();
+//
+//									callLogJson.put("userId", favLogDetails.getUser().getUserId());
+//									callLogJson.put("callStatus", favLogDetails.getCallStatus());
+//									callLogJson.put("firstName", favLogDetails.getUser().getFirstName());
+//									callLogJson.put("lastName", favLogDetails.getUser().getLastName());
+//									callLogJson.put("mobileNumber", favLogDetails.getUser().getMobileNumber());
+//									callLogJson.put("profileStatus", favLogDetails.getUser().getProfileStatus());
+//									callLogJson.put("onlineStatus", favLogDetails.getUser().getOnlineStatus());
+//									callLogJson.put("countryId", favLogDetails.getUser().getCountry().getCountryId());
+//									callLogJson.put("countryIsdCode",
+//											favLogDetails.getUser().getCountry().getCountryIsdCode());
+//									callLogJson.put("countryName",
+//											favLogDetails.getUser().getCountry().getCountryName());
+//									// callLogJson.put("callCount", favLogDetails.getCallDetails().);
+//									favCallList.add(callLogJson);
+//								}
+//							}
+//							status.put("responseStatus", true);
+//							status.put("favoriteList", favCallList);
+//							status.put("responseFavMessage", "Favorite list");
 					} else {
 						status.put("responseStatus", true);
+						status.put("favoriteList", favCallList);
 						status.put("responseFavMessage", responseMessage.get("favorite.list.is.empty"));
 						return status;
 					}
 					return status;
 				} else {
 					status.put("responseStatus", false);
-					status.put("responseFavMessage", responseMessage.get("call.did.not.initiate"));
+					status.put("responseFavMessage", responseMessage.get("favorite.list.is.empty"));
+					status.put("responseCallLogMessage", "Call log list is empty");
 					System.out.println(" Inside Rest DAO calllog Status=" + status);
 					return status;
 				}
 			} catch (Exception e) {
 				e.printStackTrace();
-				status.put("responseResult", false);
-				status.put("responseErrorMessage", responseMessage.get("call.list.retrive.error"));
+				status.put("responseStatus", false);
+				status.put("responseCallLogMessage", responseMessage.get("call.list.retrive.error"));
+				status.put("responseFavMessage", "Favorite list retrive error");
 				status.put("Error", e.getMessage());
 			}
 		} else {
 			status.put("responseStatus", false);
 			status.put("responseFavMessage", responseMessage.get("id.or.key/value.is.null.or.incorrect"));
+			status.put("responseCallLogMessage", responseMessage.get("call.list.retrive.error"));
 			return status;
 		}
 		return status;

@@ -54,4 +54,6 @@ public interface ContactsService extends CRUDService<Contacts> {
 	public Contacts getContacts(Integer contactsId);
 
 	public Contacts checkContactToCallFromCaller(Integer userId, String mobileNumber);
+
+	public Contacts getContactsByCallUsersAndMobile(Integer userId, String mobileNumber, Integer userId2);
 }

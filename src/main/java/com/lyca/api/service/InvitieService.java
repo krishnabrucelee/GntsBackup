@@ -66,4 +66,6 @@ public interface InvitieService extends CRUDService<Invities> {
 	public JSONObject getMyInvitieListByMobileNumber(JSONObject invitie);
 
 	public Invities updateInvitie(Invities invitieDetails);
+
+	public Integer getMyInvitieListByMobileNumberCount(JSONObject object);
 }
