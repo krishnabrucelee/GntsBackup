@@ -53,7 +53,7 @@ public class ContactsServiceImpl implements ContactsService {
 
 	@Autowired
 	private PusherNotificationService pusherNotificationService;
-	
+
 	@Autowired
 	@Qualifier("responseMessage")
 	private Properties responseMessage;
@@ -67,6 +67,7 @@ public class ContactsServiceImpl implements ContactsService {
 			Contacts contactsDetails = om.convertValue(contacts, Contacts.class);
 			User contactUserDetails = null;
 			Contacts contactOfBaseUser = null;
+			Country countryDetails = null;
 			try {
 				if (contacts.get("baseUserId") != null) {
 					User baseUserDetails = userService.find((Integer) contacts.get("baseUserId"));
@@ -82,20 +83,39 @@ public class ContactsServiceImpl implements ContactsService {
 					status.put("responseMessage", responseMessage.get("base.user.cannot.be.blank"));
 					return status;
 				}
-
+				if (contacts.get("countryId") != null) {
+					countryDetails = countryService.find((Integer) contacts.get("countryId"));
+					if (countryDetails != null) {
+						contactsDetails.setCountry(countryDetails);
+					} else {
+						status.put("responseStatus", false);
+						status.put("responseMessage", responseMessage.get("invalid.Country"));
+						return status;
+					}
+				}
 				if (contacts.get("mobileNumber") != null) {
+					// Check if himself as contact
+					User checkUserAdd = userService.getUserByMobileNumber(contacts.get("mobileNumber").toString());
+					if (checkUserAdd != null) {
+						if (contacts.get("baseUserId").equals(checkUserAdd.getUserId())) {
+							status.put("responseStatus", false);
+							status.put("responseMessage", responseMessage.get("you.cant.add.yourself"));
+							return status;
+						}
+					}
 					// Check if base user adding same contact number
 					Contacts duplicateContact = getDuplicateContactByBaseUserId(contacts.get("mobileNumber").toString(),
 							contacts.get("baseUserId").toString());
 					if (duplicateContact != null && duplicateContact.getContactRemoved() == true) {
 						duplicateContact.setContactRemoved(false);
+						duplicateContact.setContactBlocked(false);
 						contactsRepository.save(duplicateContact);
 						status.put("responseStatus", true);
 						// status.put("Contact", contactsDetails);
 						System.out.println("Save contactss");
 						status.put("responseMessage", responseMessage.get("contactSaveSuccess"));
 						return status;
-					}
+					} 
 					if (duplicateContact == null) {
 						contactUserDetails = userService.getUserByMobileNumber(contacts.get("mobileNumber").toString());
 						contactsDetails.setMobileNumber(contacts.get("mobileNumber").toString());
@@ -149,8 +169,8 @@ public class ContactsServiceImpl implements ContactsService {
 								JSONObject jsonPushMsg = new JSONObject();
 								jsonPushMsg.put("message", "You have an invite request");
 								jsonPushMsg.put("inviteCount", inviteCount);
-								JSONObject jsonpusher = pusherNotificationService.pushMessasge(contacts.get("mobileNumber").toString(),
-										"INVITE", jsonPushMsg);
+								JSONObject jsonpusher = pusherNotificationService
+										.pushMessasge(contacts.get("mobileNumber").toString(), "INVITE", jsonPushMsg);
 								status.put("pusherResponse", jsonpusher);
 							}
 							invitieDetails.setInvitationCode(UUID.randomUUID().toString().substring(0, 6));
@@ -161,25 +181,13 @@ public class ContactsServiceImpl implements ContactsService {
 							addInvitieDetails.add(invitieDetails);
 							contactsDetails.setInvities(addInvitieDetails);
 							status.put("invitieResponseMessage", responseMessage.get("invitie.added"));
-							
-							
-							
+
 						}
 					} else {
 						status.put("responseStatus", false);
 						status.put("responseMessage",
-								responseMessage.get("mobile.Number.already.added.in.your.contact"));
+								responseMessage.get("you.already.invited.this.contact"));
 						return status;
-					}
-					if (contacts.get("countryId") != null) {
-						Country countryDetails = countryService.find((Integer) contacts.get("countryId"));
-						if (contacts.get("countryId") != null) {
-							contactsDetails.setCountry(countryDetails);
-						} else {
-							status.put("responseStatus", false);
-							status.put("responseMessage", responseMessage.get("invalid.Country"));
-							return status;
-						}
 					}
 				} else {
 					status.put("responseStatus", false);
@@ -187,6 +195,7 @@ public class ContactsServiceImpl implements ContactsService {
 					return status;
 				}
 				contactsDetails.setContactRemoved(false);
+				contactsDetails.setContactBlocked(false);
 				contactsDetails.setCreatedDateTime(new Date());
 				contactsRepository.save(contactsDetails);
 				status.put("responseStatus", true);
@@ -325,11 +334,15 @@ public class ContactsServiceImpl implements ContactsService {
 						contactJson.put("contactRemoved", contactsDetails.getContactRemoved());
 						if (contactsDetails.getContactUser() != null) {
 							contactJson.put("contactUserId", contactsDetails.getContactUser().getUserId());
-							contactJson.put("onlineStatus", contactsDetails.getContactUser().getOnlineStatus());
+							if (contactsDetails.getContactBlocked() == true) {
+								contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+							} else {
+								contactJson.put("onlineStatus", contactsDetails.getContactUser().getOnlineStatus());
+							}
 							contactJson.put("profileStatus", contactsDetails.getContactUser().getProfileStatus());
 						} else {
 							contactJson.put("contactUserId", null);
-							contactJson.put("onlineStatus", null);
+							contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
 							contactJson.put("profileStatus", null);
 						}
 						contactJson.put("callCount", contactsDetails.getCallCount());

@@ -91,46 +91,62 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 				}
 
 			} else {
+				// Group call
 				callDetailsStatus.put("responseStatus", true);
 				Integer callDetailsId = Integer.parseInt(callDetails.get("callDetailsId").toString());
 				callDetailsObj = find(callDetailsId);
 				Integer callToId = Integer.parseInt(callDetails.get("callTo").toString());
+				CallLog checkActiveCallTo = callLogService.checkActiveCallFromOutTime(callToId);
+				if (checkActiveCallTo != null) {
+					jsonObj.put("responseStatus", false);
+					jsonObj.put("responseMessage", responseMessage.get("line.busy"));
+					return jsonObj;
+				}
 				List<CallLog> checkActiveCall = callLogService.getOnCallLiveUsers(callDetailsId, false);
 				user = userService.find(callToId);
-				User callUser1 = new User();
-				User callUser2 = new User();
-				if (checkActiveCall.size() >= 3) {
-					System.out.println("callLog update failed.");
-					jsonObj.put("responseStatus", true);
-					jsonObj.put("responseMessage", responseMessage.getProperty("only.3.members.in.group.call.allowed"));
-					return jsonObj;
-				} else if (checkActiveCall.size() <= 2) {
-					for (int i = 0; i <= checkActiveCall.size(); i++) {
-						if (i == 0) {
-							callUser1 = checkActiveCall.get(i).getUser();
-						}
-						if (i == 1) {
-							callUser2 = checkActiveCall.get(i).getUser();
-						}
-					}
-					if (user != null && callUser1 != null && callUser2 != null) {
-						if ((Boolean) callDetailsStatus.get("responseStatus") == true) {
-							JSONObject jsonPushMsg = new JSONObject();
-							List<User> callerList = new ArrayList<>();
-							callerList.add(callUser1);
-							callerList.add(callUser2);
-							jsonPushMsg.put("callDetailsId", callDetailsId);
-							jsonPushMsg.put("callMembers", callerList);
-							jsonPushMsg.put("message", "Calling...");
-							JSONObject jsonpusher = pusherNotificationService.pushMessasge(user.getMobileNumber(),
-									"CALL", jsonPushMsg);
-							callDetailsStatus.put("pusherResponse", jsonpusher);
-						}
-					} else {
-						jsonObj.put("responseStatus", false);
-						jsonObj.put("responseMessage", responseMessage.get("no.user.in.Lyca.database"));
+				// check online status b4 calling
+				if (!user.getOnlineStatus().equals(User.OnlineStatus.AVAILABLE)) {
+
+					User callUser1 = new User();
+					User callUser2 = new User();
+					if (checkActiveCall.size() >= 3) {
+						System.out.println("callLog update failed.");
+						jsonObj.put("responseStatus", true);
+						jsonObj.put("responseMessage",
+								responseMessage.getProperty("only.3.members.in.group.call.allowed"));
 						return jsonObj;
+					} else if (checkActiveCall.size() <= 2) {
+						for (int i = 0; i <= checkActiveCall.size(); i++) {
+							if (i == 0) {
+								callUser1 = checkActiveCall.get(i).getUser();
+							}
+							if (i == 1) {
+								callUser2 = checkActiveCall.get(i).getUser();
+							}
+						}
+						if (user != null && callUser1 != null && callUser2 != null) {
+							if ((Boolean) callDetailsStatus.get("responseStatus") == true) {
+								JSONObject jsonPushMsg = new JSONObject();
+								List<User> callerList = new ArrayList<>();
+								callerList.add(callUser1);
+								callerList.add(callUser2);
+								jsonPushMsg.put("callDetailsId", callDetailsId);
+								jsonPushMsg.put("callMembers", callerList);
+								jsonPushMsg.put("message", "Calling...");
+								JSONObject jsonpusher = pusherNotificationService.pushMessasge(user.getMobileNumber(),
+										"CALL", jsonPushMsg);
+								callDetailsStatus.put("pusherResponse", jsonpusher);
+							}
+						} else {
+							jsonObj.put("responseStatus", false);
+							jsonObj.put("responseMessage", responseMessage.get("no.user.in.Lyca.database"));
+							return jsonObj;
+						}
 					}
+				} else {
+					jsonObj.put("responseStatus", false);
+					jsonObj.put("responseMessage", responseMessage.get("user.is.offline.now"));
+					return jsonObj;
 				}
 			}
 			if ((Boolean) callDetailsStatus.get("responseStatus") == true) {
@@ -411,6 +427,7 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 
 			// Check caller in Active
 			CallLog checkActiveCall = callLogService.checkActiveCallFromOutTime(callerId);
+			
 			if (checkActiveCall == null) {
 
 				calleruser = userService.find(callerId);
@@ -427,20 +444,27 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 							Contacts contact = contactsService.checkContactToCallFromCaller(calleruser.getUserId(),
 									callTouser.getMobileNumber());
 							if (contact != null) {
-								try {
-									CallDetails callDetailsDetails = new CallDetails();
-									callDetailsDetails.setCallerId(calleruser);
-									callDetailsDetails.setCallTo(callTouser);
-									callDetailsDetails.setCallStatus(CallStatus.CALLING);
-									callDetailsDetails.setCreatedDateTime(new Date());
-									CallDetails callObj = save(callDetailsDetails);
-									status.put("callDetails", callObj);
-									status.put("responseStatus", true);
-									status.put("responseMessage", "CallDetails details saved");
+								// check online status of call to user
+								if (!callTouser.getOnlineStatus().equals(User.OnlineStatus.AVAILABLE)) {
+									try {
+										CallDetails callDetailsDetails = new CallDetails();
+										callDetailsDetails.setCallerId(calleruser);
+										callDetailsDetails.setCallTo(callTouser);
+										callDetailsDetails.setCallStatus(CallStatus.CALLING);
+										callDetailsDetails.setCreatedDateTime(new Date());
+										CallDetails callObj = save(callDetailsDetails);
+										status.put("callDetails", callObj);
+										status.put("responseStatus", true);
+										status.put("responseMessage", "CallDetails details saved");
 
-								} catch (Exception e) {
-									e.printStackTrace();
-									status.put("status", false);
+									} catch (Exception e) {
+										e.printStackTrace();
+										status.put("status", false);
+									}
+								} else {
+									status.put("responseStatus", false);
+									status.put("responseMessage", responseMessage.get("user.is.offline.now"));
+									return status;
 								}
 							} else {
 								status.put("responseStatus", false);
@@ -465,6 +489,12 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 			} else {
 				status.put("responseStatus", false);
 				status.put("responseMessage", responseMessage.get("on.call.active"));
+				checkActiveCall.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
+				checkActiveCall.setUpdatedDateTime(new Date());
+				checkActiveCall.setCallStatus(CallLog.CallStatus.CALLEND);
+				CallLog callLogUpdateActiveCall = callLogService.updateActiveCall(
+						checkActiveCall,
+						checkActiveCall.getCallDetails().getCallerId().getUserId());
 				return status;
 			}
 		} else {

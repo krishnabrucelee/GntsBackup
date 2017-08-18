@@ -52,7 +52,7 @@ public interface CallLogRepository extends JpaRepository<CallLog, Integer> {
 	void updateActiveCall(@Param("callerId") Integer callerId, @Param("callDetailsId") Integer callDetailsId, @Param("callStatus") CallStatus callStatus, @Param("outCallTime") Date outCallTime, @Param("updatedDateTime") Date updatedDateTime);
 
 	@Query("select callLog from CallLog callLog where callLog.user.userId =:userId ORDER BY callLog.id DESC")
-	List<CallLog> getUserFromCallLog(@Param("userId") Integer userId);
+	List<CallLog> getUserFromCallLog(@Param("userId") Integer userId, Pageable pageable);
 	
 	@Query("select callLog from CallLog callLog where callLog.callDetails.id =:callDetailsId and not callLog.user.userId =:userId and not callLog.callStatus = :callStatus ORDER BY callLog.id DESC")
 	List<CallLog> getCallLogFav(@Param("callStatus") CallLog.CallStatus callStatus, @Param("callDetailsId") Integer callDetailsId, @Param("userId") Integer userId, Pageable pageable);
@@ -70,8 +70,8 @@ public interface CallLogRepository extends JpaRepository<CallLog, Integer> {
 					+ "Contacts contact "
 			+ "LEFT JOIN call.callTo user "
 			+ "LEFT JOIN call.callTo.country country "
-			+ "WHERE call.callerId.userId = :userId AND NOT call.callStatus = :callStatus and "
-			+ "call.callTo.userId = contact.contactUser.userId "
+			+ "WHERE (call.callerId.userId = :userId AND NOT call.callStatus = :callStatus) and "
+			+ "contact.contactUser.userId = call.callTo.userId and (contact.baseUser.userId = :userId and contact.contactBlocked = false) "
 			+ "GROUP BY call.callerId.userId, call.callTo.userId ORDER BY count(call.id) DESC ")
 	List<Object[]> getFavList(@Param("callStatus") CallDetails.CallStatus callStatus, @Param("userId") Integer userId, Pageable pageable);
 

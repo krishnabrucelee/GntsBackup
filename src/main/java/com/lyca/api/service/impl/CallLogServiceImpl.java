@@ -164,7 +164,7 @@ public class CallLogServiceImpl implements CallLogService {
 			Integer favCount = Integer.parseInt(callLog.get("favCount").toString());
 			DateFormat f = new SimpleDateFormat("yyyy-MM-dd' 'HH:mm:ss' '");
 			try {
-				callLogList = callLogRepository.getUserFromCallLog(userId);
+				callLogList = callLogRepository.getUserFromCallLog(userId, new PageRequest(0,50));
 //				callLogDetailsIdList = callLogRepository.getCallDetailsIdByUserId(CallLog.CallStatus.GROUPCALL, userId, new PageRequest(0,5));
 				
 				List<Object[]> favList = callLogRepository.getFavList(CallDetails.CallStatus.GROUPCALL, userId, new PageRequest(0,5));
@@ -182,9 +182,15 @@ public class CallLogServiceImpl implements CallLogService {
 							callLogJson.put("mobileNumber", callUser.getMobileNumber());
 							if (contactUser != null) {
 								callLogJson.put("nickName", contactUser.getNickName());
+								if (contactUser.getContactBlocked() == true) {
+									callLogJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+								} else {
+									callLogJson.put("onlineStatus", callUser.getOnlineStatus());
+								}
 							} else {
 								callLogJson.put("firstName", callUser.getFirstName());
 								callLogJson.put("lastName", callUser.getLastName());
+								callLogJson.put("onlineStatus", callUser.getOnlineStatus());
 							}
 							if (callLogDetails.getInCallTime() != null) {
 								Date date = new Date(callLogDetails.getInCallTime().getTime());
@@ -222,7 +228,6 @@ public class CallLogServiceImpl implements CallLogService {
 								callLogJson.put("countryIsdCode", callUser.getCountry().getCountryIsdCode());
 								callLogJson.put("countryName", callUser.getCountry().getCountryName());
 							}
-							callLogJson.put("onlineStatus", callUser.getOnlineStatus());
 							callList.add(callLogJson);
 						} else {
 							// Outgoing
@@ -232,9 +237,15 @@ public class CallLogServiceImpl implements CallLogService {
 							callLogJson.put("mobileNumber", callToUser.getMobileNumber());
 							if (contactUser != null) {
 								callLogJson.put("nickName", contactUser.getNickName());
+								if (contactUser.getContactBlocked() == true) {
+									callLogJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+								} else {
+									callLogJson.put("onlineStatus", callToUser.getOnlineStatus());
+								}
 							} else {
 								callLogJson.put("firstName", callToUser.getFirstName());
 								callLogJson.put("lastName", callToUser.getLastName());
+								callLogJson.put("onlineStatus", callToUser.getOnlineStatus());
 							}
 							callLogJson.put("userId", callToUser.getUserId());
 							callLogJson.put("mobileNumber", callToUser.getMobileNumber());
@@ -273,7 +284,6 @@ public class CallLogServiceImpl implements CallLogService {
 								callLogJson.put("countryIsdCode", callToUser.getCountry().getCountryIsdCode());
 								callLogJson.put("countryName", callToUser.getCountry().getCountryName());
 							}
-							callLogJson.put("onlineStatus", callToUser.getOnlineStatus());
 							callList.add(callLogJson);
 						}
 						status.put("responseStatus", true);
