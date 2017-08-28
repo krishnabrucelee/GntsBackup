@@ -102,8 +102,11 @@ public class CallLogServiceImpl implements CallLogService {
 				callLogRepository.save(callLogDetails);
 
 				// Update call status
-				callLogRepository.updateCallStatus(callLogDetails.getCallDetails().getId(),
-						callLogDetails.getCallStatus());
+				if (!callLog.get("callStatus").toString().equals(CallDetails.CallStatus.ATTENDED.toString())) {
+					callLogRepository.updateCallStatus(callLogDetails.getCallDetails().getId(),
+							callLogDetails.getCallStatus());
+				}
+				
 				status.put("responseStatus", true);
 				status.put("responseMessage", "CallLog details saved");
 			} else if (callLog.get("callDetailsUpdateFlag") != null
@@ -237,7 +240,7 @@ public class CallLogServiceImpl implements CallLogService {
 							callLogJson.put("mobileNumber", callToUser.getMobileNumber());
 							if (contactUser != null) {
 								callLogJson.put("nickName", contactUser.getNickName());
-								if (contactUser.getContactBlocked() == true) {
+								if (contactUser.getContactBlocked() == true || contactUser.getContactRemoved() == true) {
 									callLogJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
 								} else {
 									callLogJson.put("onlineStatus", callToUser.getOnlineStatus());
@@ -273,6 +276,27 @@ public class CallLogServiceImpl implements CallLogService {
 							if (callLogDetails.getCallDetails().getCallStatus() != null) {
 								if (callLogDetails.getCallDetails().getCallStatus().toString().equals(CallLog.CallStatus.GROUPCALL.toString())) {
 									callLogJson.put("callStatus", callLogDetails.getCallDetails().getCallStatus());
+									List<CallLog> checkActiveCall = getCallLogCallDetailsId(callLogDetails.getCallDetails().getId());
+									if (!checkActiveCall.isEmpty() && checkActiveCall.size() >= 2) {
+
+										User callUser1 = new User();
+										User callUser2 = new User();
+										Contacts contactUser1 = new Contacts();
+										List<String> groupName = new ArrayList<>();
+										if (checkActiveCall.size() >= 2) {
+											for (int i = 1; i <= checkActiveCall.size(); i++) {
+												if(i != checkActiveCall.size()) {
+													callUser1 = checkActiveCall.get(i).getUser();
+													contactUser1 = contactsService.getContactsByCallUsersAndMobile(
+															userId, callUser1.getMobileNumber(), callUser1.getUserId());
+													groupName.add(contactUser1.getNickName());
+												}
+													
+													
+												}
+											}
+										callLogJson.put("groupName",groupName);
+									}
 								} else {
 									callLogJson.put("callStatus", "OUTGOING");
 								}
@@ -373,6 +397,30 @@ public class CallLogServiceImpl implements CallLogService {
 	}
 
 	@Override
+	public List<CallLog> getCallLogByCallIdAndUserIdList(Integer callDetailsId, Integer callToId) {
+		JSONObject status = new JSONObject();
+		status.put("responseResult", true);
+		List<CallLog> callLogList = null;
+		if (callDetailsId != null && callToId != null) {
+
+			try {
+				callLogList = callLogRepository.getCallLogByCallIdAndUserId(callDetailsId, callToId);
+				if (!callLogList.isEmpty()) {
+					return callLogList;
+				} else {
+					return null;
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+				status.put("responseResult", false);
+			}
+		} else {
+			return null;
+		}
+		return callLogList;
+	}
+
+	@Override
 	public CallLog getCallLogByCallIdAndUserId(Integer callDetailsId, Integer callToId) {
 		JSONObject status = new JSONObject();
 		status.put("responseResult", true);
@@ -381,7 +429,7 @@ public class CallLogServiceImpl implements CallLogService {
 
 			try {
 				callLogList = callLogRepository.getCallLogByCallIdAndUserId(callDetailsId, callToId);
-				if (callLogList.size() == 1) {
+				if (!callLogList.isEmpty()) {
 					for (CallLog callLogDetails : callLogList) {
 
 						List<CallLog> call = new ArrayList<>();
@@ -400,7 +448,7 @@ public class CallLogServiceImpl implements CallLogService {
 		}
 		return callLogList.get(0);
 	}
-
+	
 	@Override
 	public CallLog updateCallLog(CallLog callLogDetails) {
 		// TODO Auto-generated method stub
@@ -409,8 +457,21 @@ public class CallLogServiceImpl implements CallLogService {
 
 	@Override
 	public List<CallLog> getCallLogCallDetailsId(Integer callDetailsId) {
-		// TODO Auto-generated method stub
-		return null;
+		JSONObject status = new JSONObject();
+		status.put("responseResult", true);
+		List<CallLog> callLogList = null;
+		if (callDetailsId != null) {
+			try {
+				callLogList = callLogRepository.getCallLogCallDetailsId(callDetailsId);
+				return callLogList;
+			} catch (Exception e) {
+				e.printStackTrace();
+				status.put("responseResult", false);
+			}
+		} else {
+			return null;
+		}
+		return callLogList;
 	}
 
 	@Override
@@ -525,6 +586,26 @@ public class CallLogServiceImpl implements CallLogService {
 		if (callDetailsId != null) {
 			try {
 				callLogList = callLogRepository.getOnCallLiveUsersWithOutTimeNOTNull(callDetailsId);
+				return callLogList;
+			} catch (Exception e) {
+				e.printStackTrace();
+				status.put("responseResult", false);
+			}
+		} else {
+			return null;
+		}
+		return callLogList;
+	}
+
+	@Override
+	public List<CallLog> getOnCallLiveUsersWithOutRejAndMisCall(Integer callDetailsId, Boolean outCallTimeStatus) {
+		JSONObject status = new JSONObject();
+		status.put("responseResult", true);
+		List<CallLog> callLogList = null;
+		if (callDetailsId != null) {
+			try {
+				callLogList = callLogRepository.getOnCallLiveUsersWithOutRejAndMisCall(callDetailsId, 
+						CallLog.CallStatus.REJECTED, CallLog.CallStatus.MISSEDCALL, CallLog.CallStatus.CALLEND);
 				return callLogList;
 			} catch (Exception e) {
 				e.printStackTrace();

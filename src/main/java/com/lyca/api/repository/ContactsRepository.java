@@ -19,7 +19,7 @@ public interface ContactsRepository extends JpaRepository<Contacts, Integer> {
 	@Query("select contact from Contacts contact where contact.baseUser.userId = :userId and contact.contactRemoved = :contactRemoved and contact.mobileNumber =:mobileNumber ")
 	List<Contacts> checkContactToCallFromCaller(@Param("userId") Integer userId, @Param("contactRemoved") Boolean contactRemoved, @Param("mobileNumber") String mobileNumber);
 
-	@Query("select contact from Contacts contact where contact.baseUser.userId = :userId and contact.contactRemoved = :contactRemoved and NOT contact.mobileNumber =:mobileNumber ")
+	@Query("select contact from Contacts contact where contact.baseUser.userId = :userId and contact.contactRemoved = :contactRemoved and NOT contact.mobileNumber =:mobileNumber ORDER BY contact.nickName ASC ")
 	List<Contacts> getContactsById(@Param("userId") Integer userId, @Param("contactRemoved") Boolean contactRemoved, @Param("mobileNumber") String mobileNumber);
 
 	@Query("select contact from Contacts contact where contact.mobileNumber = :mobileNumber and contact.baseUser.userId = :userId ")

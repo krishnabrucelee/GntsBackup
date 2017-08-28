@@ -27,4 +27,7 @@ public interface InvitieRepository extends JpaRepository<Invities, Integer> {
 	@Query("select invite from Invities invite where invite.inviteeMobileNumber = :inviteeMobileNumber and invite.inviteeStatus = :inviteeStatus ")
 	List<Invities> getMyInvitieListByMobileNumber(@Param("inviteeMobileNumber") String inviteeMobileNumber, @Param("inviteeStatus") InviteeStatus inviteeStatus);
 
+	@Query("select invite from Invities invite where invite.baseUser.userId = :userId and invite.inviteeMobileNumber = :mobileNumber")
+	Invities getInvitieTwoAndFroAndNotRejected(@Param("userId") Integer userId, @Param("mobileNumber") String mobileNumber);
+
 }

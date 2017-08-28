@@ -67,4 +67,8 @@ public interface CallLogService extends CRUDService<CallLog> {
 	public CallLog updateActiveCall(CallLog callLogDetails, Integer integer);
 
 	public List<CallLog> getOnCallLiveUsersWithOutTimeNOTNull(Integer callDetailsId);
+
+	public List<CallLog> getOnCallLiveUsersWithOutRejAndMisCall(Integer callDetailsId, Boolean outCallTimeStatus);
+
+	public List<CallLog> getCallLogByCallIdAndUserIdList(Integer callDetailsId, Integer callUserId);
 }

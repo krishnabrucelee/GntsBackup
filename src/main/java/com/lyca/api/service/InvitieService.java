@@ -5,6 +5,7 @@ package com.lyca.api.service;
 
 import org.json.simple.JSONObject;
 import com.lyca.api.model.Invities;
+import com.lyca.api.model.Invities.InviteeStatus;
 import com.lyca.api.util.CRUDService;
 
 /**
@@ -68,4 +69,6 @@ public interface InvitieService extends CRUDService<Invities> {
 	public Invities updateInvitie(Invities invitieDetails);
 
 	public Integer getMyInvitieListByMobileNumberCount(JSONObject object);
+
+	public Invities getInvitieTwoAndFroAndNotRejected(Integer userId, String mobileNumber, InviteeStatus rejected);
 }

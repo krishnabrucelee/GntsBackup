@@ -57,4 +57,6 @@ public interface ContactsService extends CRUDService<Contacts> {
 	public Contacts checkContactToCallFromCaller(Integer userId, String mobileNumber);
 
 	public Contacts getContactsByCallUsersAndMobile(Integer userId, String mobileNumber, Integer userId2);
+
+	public JSONObject removeContact(JSONObject invitie) throws Exception;
 }

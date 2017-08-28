@@ -38,7 +38,7 @@ public interface CallLogRepository extends JpaRepository<CallLog, Integer> {
 	@Query("update CallLog callLog set callLog.callStatus = :callStatus, callLog.updatedDateTime = :updatedDateTime where callLog.callDetails.id = :callId")
 	void updateCallStatusWithDateTime(@Param("callId") Integer callId, @Param("callStatus") CallStatus callStatus, @Param("updatedDateTime") Date date);
 
-	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId AND callLog.user.userId =:callToId")
+	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId AND callLog.user.userId =:callToId ORDER BY callLog.id DESC")
 	List<CallLog> getCallLogByCallIdAndUserId(@Param("callDetailsId") Integer callDetailsId, @Param("callToId") Integer callToId);
 
 	@Modifying(clearAutomatically = true)
@@ -80,4 +80,10 @@ public interface CallLogRepository extends JpaRepository<CallLog, Integer> {
 
 	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId")
 	List<CallLog> getOnCallLiveUsersWithOutTimeNOTNull(@Param("callDetailsId") Integer callDetailsId);
+
+	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId and not callLog.callStatus = :rejected and not callLog.callStatus = :missedCall and not callLog.callStatus = :callEnd")
+	List<CallLog> getOnCallLiveUsersWithOutRejAndMisCall(@Param("callDetailsId") Integer callDetailsId, @Param("rejected") CallLog.CallStatus rejected, @Param("missedCall") CallLog.CallStatus missedCall, @Param("callEnd") CallLog.CallStatus callEnd);
+
+	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId")
+	List<CallLog> getCallLogCallDetailsId(@Param("callDetailsId") Integer callDetailsId);
 }

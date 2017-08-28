@@ -29,6 +29,7 @@ import com.lyca.api.service.PusherNotificationService;
 import com.lyca.api.service.UserService;
 import com.lyca.api.model.Country;
 import com.lyca.api.model.Invities;
+import com.lyca.api.model.Invities.InviteeStatus;
 import com.lyca.api.model.User;
 
 /**
@@ -94,39 +95,148 @@ public class ContactsServiceImpl implements ContactsService {
 					}
 				}
 				if (contacts.get("mobileNumber") != null) {
-					// Check if himself as contact
+					// check two and fro scenario inviting vise-sersa
 					User checkUserAdd = userService.getUserByMobileNumber(contacts.get("mobileNumber").toString());
-					if (checkUserAdd != null) {
-						if (contacts.get("baseUserId").equals(checkUserAdd.getUserId())) {
-							status.put("responseStatus", false);
-							status.put("responseMessage", responseMessage.get("you.cant.add.yourself"));
-							return status;
+					User baseUserDetails = userService.find((Integer) contacts.get("baseUserId"));
+					if (contacts.get("contactMobileNumber") == null) {
+						if (checkUserAdd != null) {
+							Invities twoFroCheck = invitieService.getInvitieTwoAndFroAndNotRejected(
+									checkUserAdd.getUserId(), baseUserDetails.getMobileNumber(),
+									Invities.InviteeStatus.REJECTED);
+							if (twoFroCheck != null) {
+								status.put("responseStatus", false);
+								status.put("responseMessage", responseMessage.get("this.person.invited.you"));
+								return status;
+							}
 						}
 					}
+
+					// Check if himself as contact
+					if (contacts.get("contactMobileNumber") != null) {
+						User checkContactUserAdd = userService
+								.getUserByMobileNumber(contacts.get("contactMobileNumber").toString());
+						if (checkContactUserAdd != null) {
+							if (contacts.get("baseUserId").equals(checkContactUserAdd.getUserId())) {
+								status.put("responseStatus", false);
+								status.put("responseMessage", responseMessage.get("you.cant.add.yourself"));
+								return status;
+							}
+						}
+					} else {
+						if (checkUserAdd != null) {
+							if (contacts.get("baseUserId").equals(checkUserAdd.getUserId())) {
+								status.put("responseStatus", false);
+								status.put("responseMessage", responseMessage.get("you.cant.add.yourself"));
+								return status;
+							}
+						}
+					}
+
 					// Check if base user adding same contact number
-					Contacts duplicateContact = getDuplicateContactByBaseUserId(contacts.get("mobileNumber").toString(),
-							contacts.get("baseUserId").toString());
+					Contacts duplicateContact = null;
+					if (contacts.get("contactMobileNumber") == null) {
+						duplicateContact = getDuplicateContactByBaseUserId(contacts.get("mobileNumber").toString(),
+								contacts.get("baseUserId").toString());
+					} else {
+						duplicateContact = getDuplicateContactByBaseUserId(
+								contacts.get("contactMobileNumber").toString(), contacts.get("baseUserId").toString());
+					}
 					if (duplicateContact != null && duplicateContact.getContactRemoved() == true) {
-						duplicateContact.setContactRemoved(false);
-						duplicateContact.setContactBlocked(false);
-						contactsRepository.save(duplicateContact);
-						status.put("responseStatus", true);
-						// status.put("Contact", contactsDetails);
-						System.out.println("Save contactss");
-						status.put("responseMessage", responseMessage.get("contactSaveSuccess"));
-						return status;
-					} 
+						if (duplicateContact.getContactUser().getStbUser() == true
+								&& duplicateContact.getBaseUser().getStbUser() == true) {
+							duplicateContact.setContactRemoved(false);
+							duplicateContact.setContactBlocked(false);
+							contactsRepository.save(duplicateContact);
+							status.put("responseStatus", true);
+							// status.put("Contact", contactsDetails);
+							System.out.println("Save contactss");
+							status.put("responseMessage", responseMessage.get("contactSaveSuccess"));
+							return status;
+						} else if (duplicateContact.getContactUser().getStbUser() == false
+								&& duplicateContact.getBaseUser().getStbUser() == true) {
+							duplicateContact.setContactRemoved(false);
+							duplicateContact.setContactBlocked(false);
+							contactsRepository.save(duplicateContact);
+							status.put("responseStatus", true);
+							// status.put("Contact", contactsDetails);
+							System.out.println("Save contactss");
+							status.put("responseMessage", responseMessage.get("contactSaveSuccess"));
+							return status;
+						}
+//						} else {
+//							// check if non stb user also removes ur contact
+//							if (duplicateContact.getBaseUser().getStbUser() == true) {
+//								Contacts nonStbContact = getDuplicateContactByBaseUserId(
+//										duplicateContact.getContactUser().getMobileNumber(),
+//										contacts.get("baseUserId").toString());
+//								if (nonStbContact != null && nonStbContact.getContactRemoved() == true) {
+//
+//									Invities invitieDetails = new Invities();
+//									invitieDetails.setBaseUser(contactsDetails.getBaseUser());
+//									invitieDetails.setInviteeMobileNumber(contacts.get("mobileNumber").toString());
+//									if (contacts.get("inviteeStatus") != null) {
+//										if (contacts.get("inviteeStatus").toString()
+//												.equals(Contacts.InviteeStatus.ACCEPTED.toString())) {
+//											invitieDetails.setInviteeStatus(Invities.InviteeStatus.ACCEPTED);
+//											contactsDetails.setInviteeStatus(Contacts.InviteeStatus.ACCEPTED);
+//										}
+//									} else {
+//										invitieDetails.setInviteeStatus(Invities.InviteeStatus.PENDING);
+//										contactsDetails.setInviteeStatus(Contacts.InviteeStatus.PENDING);
+//										// Pusher
+//										Integer inviteCount = invitieService
+//												.getMyInvitieListByMobileNumberCount(contacts);
+//										JSONObject jsonPushMsg = new JSONObject();
+//										jsonPushMsg.put("message", "You have an invite request");
+//										jsonPushMsg.put("inviteCount", inviteCount);
+//										JSONObject jsonpusher = pusherNotificationService.pushMessasge(
+//												contacts.get("mobileNumber").toString(), "INVITE", jsonPushMsg);
+//										status.put("pusherResponse", jsonpusher);
+//									}
+//									invitieDetails.setInvitationCode(UUID.randomUUID().toString().substring(0, 6));
+//									invitieDetails.setCreatedDateTime(new Date());
+//									List<Invities> addInvitieDetails = new ArrayList<Invities>();
+//									contactsDetails.setContactUser(contactUserDetails);
+//									invitieService.save(invitieDetails);
+//									addInvitieDetails.add(invitieDetails);
+//									contactsDetails.setInvities(addInvitieDetails);
+//									status.put("invitieResponseMessage", responseMessage.get("invitie.added"));
+//								} else {
+//									duplicateContact.setContactRemoved(false);
+//									duplicateContact.setContactBlocked(false);
+//									contactsRepository.save(duplicateContact);
+//									status.put("responseStatus", true);
+//									// status.put("Contact", contactsDetails);
+//									System.out.println("Save contactss");
+//									status.put("responseMessage", responseMessage.get("contactSaveSuccess"));
+//									return status;
+//								}
+//							} else {
+//								duplicateContact.setContactRemoved(false);
+//								duplicateContact.setContactBlocked(false);
+//								contactsRepository.save(duplicateContact);
+//								status.put("responseStatus", true);
+//								// status.put("Contact", contactsDetails);
+//								System.out.println("Save contactss");
+//								status.put("responseMessage", responseMessage.get("contactSaveSuccess"));
+//								return status;
+//							}
+//
+//						}
+					}
 					if (duplicateContact == null) {
 						contactUserDetails = userService.getUserByMobileNumber(contacts.get("mobileNumber").toString());
 						contactsDetails.setMobileNumber(contacts.get("mobileNumber").toString());
 						// if (contactUserDetails == null) {
 						if (contacts.get("contactMobileNumber") != null) {
-							contactOfBaseUser = getDuplicateContactByBaseUserId(
-									contacts.get("contactMobileNumber").toString(),
-									contactUserDetails.getUserId().toString());
+							User contactMobileUserDetails = userService
+									.getUserByMobileNumber(contacts.get("contactMobileNumber").toString());
+							contactsDetails.setMobileNumber(contacts.get("contactMobileNumber").toString());
+							contactOfBaseUser = getDuplicateContactByBaseUserId(contacts.get("mobileNumber").toString(),
+									contactMobileUserDetails.getUserId().toString());
 							if (contactOfBaseUser != null) {
 								User contactUserDetails1 = userService
-										.getUserByMobileNumber(contacts.get("contactMobileNumber").toString());
+										.getUserByMobileNumber(contacts.get("mobileNumber").toString());
 								contactOfBaseUser.setContactUser(contactUserDetails1);
 								if (contacts.get("inviteeStatus") != null) {
 									if (contacts.get("inviteeStatus").toString()
@@ -140,17 +250,9 @@ public class ContactsServiceImpl implements ContactsService {
 									}
 								}
 								contactsRepository.save(contactOfBaseUser);
-								contactsDetails.setContactUser(contactUserDetails);
+								contactsDetails.setContactUser(contactMobileUserDetails);
 							}
-							Invities invities = invitieService
-									.getInvitiesByMobileNumber(contacts.get("contactMobileNumber").toString());
-							if (invities != null) {
-								if (invities.getInviteeStatus().equals(Invities.InviteeStatus.REJECTED)) {
-									invities.setInviteeStatus(Invities.InviteeStatus.PENDING);
-									invities.setUpdatedDateTime(new Date());
-									invitieService.save(invities);
-								}
-							}
+
 						} else {
 							Invities invitieDetails = new Invities();
 							invitieDetails.setBaseUser(contactsDetails.getBaseUser());
@@ -185,8 +287,7 @@ public class ContactsServiceImpl implements ContactsService {
 						}
 					} else {
 						status.put("responseStatus", false);
-						status.put("responseMessage",
-								responseMessage.get("you.already.invited.this.contact"));
+						status.put("responseMessage", responseMessage.get("you.already.invited.this.contact"));
 						return status;
 					}
 				} else {
@@ -201,6 +302,7 @@ public class ContactsServiceImpl implements ContactsService {
 				status.put("responseStatus", true);
 				System.out.println("Save contactss");
 				status.put("responseMessage", responseMessage.get("contactSaveSuccess"));
+
 			} catch (Exception e) {
 				e.printStackTrace();
 				status.put("responseStatus", false);
@@ -275,6 +377,14 @@ public class ContactsServiceImpl implements ContactsService {
 						if (contacts.get("contactRemoved") != null
 								&& !contacts.get("contactRemoved").toString().isEmpty()) {
 							contactsDetails.setContactRemoved((Boolean) contacts.get("contactRemoved"));
+							if (contactsDetails.getContactUser() != null) {
+								Invities invities = invitieService.getInvitieTwoAndFroAndNotRejected(
+										contactsDetails.getContactUser().getUserId(),
+										contactsDetails.getBaseUser().getMobileNumber(), InviteeStatus.REJECTED);
+								if (invities != null) {
+									invitieService.delete(invities);
+								}
+							}
 							status.put("responseMessage", responseMessage.get("contactRemove"));
 						} else {
 							status.put("responseStatus", false);
@@ -333,18 +443,47 @@ public class ContactsServiceImpl implements ContactsService {
 						contactJson.put("contactBlocked", contactsDetails.getContactBlocked());
 						contactJson.put("contactRemoved", contactsDetails.getContactRemoved());
 						if (contactsDetails.getContactUser() != null) {
-							contactJson.put("contactUserId", contactsDetails.getContactUser().getUserId());
-							if (contactsDetails.getContactBlocked() == true) {
-								contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
-							} else {
-								contactJson.put("onlineStatus", contactsDetails.getContactUser().getOnlineStatus());
+							Contacts contactUser = getContactsByCallUsersAndMobile((Integer) contacts.get("userId"),
+									contactsDetails.getMobileNumber(), contactsDetails.getContactUser().getUserId());
+							if (contactUser != null) {
+								if (contactUser.getContactBlocked() == true
+										|| contactUser.getContactRemoved() == true) {
+									contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+								} else if (contactsDetails.getInviteeStatus().equals(Contacts.InviteeStatus.PENDING)
+										|| contactsDetails.getInviteeStatus().equals(Contacts.InviteeStatus.REJECTED)) {
+									contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+								} else {
+									contactJson.put("onlineStatus", contactsDetails.getContactUser().getOnlineStatus());
+								}
+								contactJson.put("profileStatus", contactsDetails.getContactUser().getProfileStatus());
+								contactJson.put("contactUserId", contactsDetails.getContactUser().getUserId());
 							}
-							contactJson.put("profileStatus", contactsDetails.getContactUser().getProfileStatus());
 						} else {
 							contactJson.put("contactUserId", null);
-							contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+							if (contactsDetails.getInviteeStatus().equals(Contacts.InviteeStatus.PENDING)
+									|| contactsDetails.getInviteeStatus().equals(Contacts.InviteeStatus.REJECTED)) {
+								contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+							} else {
+								contactJson.put("onlineStatus", User.OnlineStatus.OFFLINE);
+							}
+
 							contactJson.put("profileStatus", null);
 						}
+						// if (contactsDetails.getContactUser() != null) {
+						// contactJson.put("contactUserId",
+						// contactsDetails.getContactUser().getUserId());
+						// if (contactsDetails.getContactBlocked() == true) {
+						// contactJson.put("onlineStatus",
+						// User.OnlineStatus.OFFLINE);
+						// } else {
+						// contactJson.put("onlineStatus",
+						// contactsDetails.getContactUser().getOnlineStatus());
+						// }
+						// contactJson.put("profileStatus",
+						// contactsDetails.getContactUser().getProfileStatus());
+						// } else {
+						//
+						// }
 						contactJson.put("callCount", contactsDetails.getCallCount());
 						contactss.add(contactJson);
 						status.put("contacts", contactss);
@@ -412,7 +551,7 @@ public class ContactsServiceImpl implements ContactsService {
 
 	@Override
 	public void delete(Contacts t) throws Exception {
-		// TODO Auto-generated method stub
+		contactsRepository.delete(t);
 	}
 
 	@Override
@@ -434,5 +573,30 @@ public class ContactsServiceImpl implements ContactsService {
 	@Override
 	public Contacts getContactsByCallUsersAndMobile(Integer baseUserId, String mobileNumber, Integer callToUserId) {
 		return contactsRepository.getContactsByCallUsersAndMobile(baseUserId, mobileNumber, callToUserId);
+	}
+
+	@Override
+	public JSONObject removeContact(JSONObject contacts) throws Exception {
+		JSONObject status = new JSONObject();
+		status.put("responseStatus", true);
+		if ((contacts.get("baseUserId") != null && !contacts.get("baseUserId").toString().isEmpty())
+				&& (!contacts.get("mobileNumber").toString().isEmpty() && (contacts.get("mobileNumber") != null))
+				&& (!contacts.get("contactMobileNumber").toString().isEmpty()
+						&& (contacts.get("contactMobileNumber") != null))) {
+			User user = userService.getUserByMobileNumber(contacts.get("contactMobileNumber").toString());
+			Contacts contactUser = getContactsByCallUsersAndMobile(user.getUserId(),
+					contacts.get("mobileNumber").toString(), (Integer) contacts.get("baseUserId"));
+			if (contactUser != null) {
+				delete(contactUser);
+				status.put("responseMessage", responseMessage.get("contact.removed"));
+			} else {
+				status.put("responseStatus", false);
+				status.put("responseMessage", responseMessage.get("contact.removed.error"));
+				return status;
+			}
+
+		}
+
+		return status;
 	}
 }

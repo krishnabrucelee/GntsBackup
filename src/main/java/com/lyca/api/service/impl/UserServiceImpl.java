@@ -238,6 +238,7 @@ public class UserServiceImpl implements UserService {
 					if (user.get("profilePicUrl") != null) {
 						userDetails.setProfilePicUrl(user.get("profilePicUrl").toString());
 						status.put("responseMessage", responseMessage.get("user.profile.image.uploaded"));
+						status.put("user", userDetails);
 					}
 					if (user.get("onlineStatus") != null
 							&& user.get("onlineStatus").toString().equals(User.OnlineStatus.AVAILABLE.toString())) {
@@ -341,8 +342,8 @@ public class UserServiceImpl implements UserService {
 								json.put("invitieId", myInvitie.getInvitieId());
 								json.put("inviteeStatus", Invities.InviteeStatus.ACCEPTED);
 								json.put("baseUserId", users.get(0).getUserId());
-								json.put("mobileNumber", myInvitie.getBaseUser().getMobileNumber());
-								json.put("contactMobileNumber", myInvitie.getInviteeMobileNumber());
+								json.put("mobileNumber", myInvitie.getInviteeMobileNumber());
+								json.put("contactMobileNumber", myInvitie.getBaseUser().getMobileNumber());
 								if (myInvitie.getBaseUser().getFirstName() != null) {
 									json.put("nickName", myInvitie.getBaseUser().getFirstName());
 								} else {

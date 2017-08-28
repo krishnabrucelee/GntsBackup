@@ -12,6 +12,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import com.lyca.api.model.Invities;
+import com.lyca.api.model.Invities.InviteeStatus;
 import com.lyca.api.repository.InvitieRepository;
 import com.lyca.api.service.ContactsService;
 import com.lyca.api.service.InvitieService;
@@ -66,15 +67,25 @@ public class InvitieServiceImpl implements InvitieService {
 				}
 
 				if (invitie.get("inviteeStatus").toString().equals(Invities.InviteeStatus.ACCEPTED.toString())) {
-					invitieDetails.setInviteeStatus(Invities.InviteeStatus.ACCEPTED);
-					invitieRepository.save(invitieDetails);
-					JSONObject contact = contactsService.addContacts(invitie);
+					
+					JSONObject contactStatus = contactsService.addContacts(invitie);
+					if (contactStatus.get("responseStatus").equals(false)) {
+						status.put("responseMessage", contactStatus.get("responseMessage"));
+						status.put("responseStatus", contactStatus.get("responseStatus"));
+						return status;
+					} else {
+						invitieDetails.setInviteeStatus(Invities.InviteeStatus.ACCEPTED);
+						invitieRepository.save(invitieDetails);
+					}
 				}
 
 				if (invitie.get("inviteeStatus").toString().equals(Invities.InviteeStatus.REJECTED.toString())) {
-					invitieDetails.setInviteeStatus(Invities.InviteeStatus.REJECTED);
-					invitieRepository.save(invitieDetails);
-					//JSONObject contact = contactsService.addContacts(invitie);
+					JSONObject contact = contactsService.removeContact(invitie);
+					if (contact.get("responseStatus").equals(false)) {
+						status.put("responseMessage", contact.get("responseMessage"));
+						status.put("responseStatus", contact.get("responseStatus"));
+						return status;
+					} 
 				}
 
 				if (invitie.get("inviteeStatus").toString().equals(Invities.InviteeStatus.PENDING.toString())) {
@@ -237,7 +248,7 @@ public class InvitieServiceImpl implements InvitieService {
 	@Override
 	public Invities save(Invities t) throws Exception {
 		// TODO Auto-generated method stub
-		return null;
+		return invitieRepository.save(t);
 	}
 
 	@Override
@@ -248,9 +259,9 @@ public class InvitieServiceImpl implements InvitieService {
 
 	@Override
 	public void delete(Invities t) throws Exception {
-		// TODO Auto-generated method stub
-
+		invitieRepository.delete(t);
 	}
+	
 	@Override
 	public void delete(Integer id) throws Exception {
 		// TODO Auto-generated method stub
@@ -291,6 +302,27 @@ public class InvitieServiceImpl implements InvitieService {
 			status.put("responseMessage", responseMessage.get("mobile.number.cannot.be.blank"));
 		}
 		return invitieList.size();
+	}
+
+	@Override
+	public Invities getInvitieTwoAndFroAndNotRejected(Integer userId, String mobileNumber, InviteeStatus rejected) {
+		JSONObject status = new JSONObject();
+		status.put("responseStatus", true);
+		Invities invitieList = new Invities();
+		if (userId != null && mobileNumber != null) {
+
+			try {
+				return invitieList = invitieRepository.getInvitieTwoAndFroAndNotRejected(userId, mobileNumber);
+			} catch (Exception e) {
+				e.printStackTrace();
+				status.put("responseStatus", false);
+				status.put("Error", e.getMessage());
+			}
+		} else {
+			status.put("responseStatus", false);
+			status.put("responseMessage", responseMessage.get("mobile.number.cannot.be.blank"));
+		}
+		return invitieList;
 	}
 
 }
