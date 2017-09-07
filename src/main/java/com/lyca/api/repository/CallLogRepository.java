@@ -81,7 +81,7 @@ public interface CallLogRepository extends JpaRepository<CallLog, Integer> {
 	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId")
 	List<CallLog> getOnCallLiveUsersWithOutTimeNOTNull(@Param("callDetailsId") Integer callDetailsId);
 
-	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId and not callLog.callStatus = :rejected and not callLog.callStatus = :missedCall and not callLog.callStatus = :callEnd")
+	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId and not callLog.callStatus = :rejected and not callLog.callStatus = :missedCall and not callLog.callStatus = :callEnd and outCallTime IS NULL")
 	List<CallLog> getOnCallLiveUsersWithOutRejAndMisCall(@Param("callDetailsId") Integer callDetailsId, @Param("rejected") CallLog.CallStatus rejected, @Param("missedCall") CallLog.CallStatus missedCall, @Param("callEnd") CallLog.CallStatus callEnd);
 
 	@Query("select callLog from CallLog callLog where callLog.callDetails.id = :callDetailsId")

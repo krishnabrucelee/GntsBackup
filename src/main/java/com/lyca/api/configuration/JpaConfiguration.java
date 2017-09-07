@@ -1,6 +1,7 @@
 package com.lyca.api.configuration;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.Properties;
 
 import javax.naming.NamingException;
@@ -9,6 +10,7 @@ import javax.sql.DataSource;
 
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceBuilder;
 import org.springframework.boot.autoconfigure.jdbc.DataSourceProperties;
@@ -19,12 +21,18 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.core.env.Environment;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.http.client.BufferingClientHttpRequestFactory;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.orm.jpa.JpaTransactionManager;
 import org.springframework.orm.jpa.JpaVendorAdapter;
 import org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean;
 import org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.web.client.RestTemplate;
+import org.springframework.web.servlet.config.annotation.EnableWebMvc;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurerAdapter;
 
 import com.zaxxer.hikari.HikariDataSource;
 
@@ -34,27 +42,31 @@ import com.zaxxer.hikari.HikariDataSource;
  *
  */
 @Configuration
-@EnableJpaRepositories(basePackages = "com.lyca.api.repository",
-		entityManagerFactoryRef = "entityManagerFactory",
-		transactionManagerRef = "transactionManager")
+@EnableJpaRepositories(basePackages = "com.lyca.api.repository", entityManagerFactoryRef = "entityManagerFactory", transactionManagerRef = "transactionManager")
 @EnableTransactionManagement
-public class JpaConfiguration {
+@EnableWebMvc
+public class JpaConfiguration extends WebMvcConfigurerAdapter {
 
 	@Autowired
 	private Environment environment;
+
+	@Autowired
+	@Qualifier("responseMessage")
+	private Properties responseMessage;
 
 	@Value("${datasource.sampleapp.maxPoolSize:10}")
 	private int maxPoolSize;
 
 	/*
-	 * Populate SpringBoot DataSourceProperties object directly from application.yml 
-	 * based on prefix.Thanks to .yml, Hierachical data is mapped out of the box with matching-name
-	 * properties of DataSourceProperties object].
+	 * Populate SpringBoot DataSourceProperties object directly from
+	 * application.yml based on prefix.Thanks to .yml, Hierachical data is
+	 * mapped out of the box with matching-name properties of
+	 * DataSourceProperties object].
 	 */
 	@Bean
 	@Primary
 	@ConfigurationProperties(prefix = "datasource.sampleapp")
-	public DataSourceProperties dataSourceProperties(){
+	public DataSourceProperties dataSourceProperties() {
 		return new DataSourceProperties();
 	}
 
@@ -64,16 +76,12 @@ public class JpaConfiguration {
 	@Bean
 	public DataSource dataSource() {
 		DataSourceProperties dataSourceProperties = dataSourceProperties();
-			HikariDataSource dataSource = (HikariDataSource) DataSourceBuilder
-					.create(dataSourceProperties.getClassLoader())
-					.driverClassName(dataSourceProperties.getDriverClassName())
-					.url(dataSourceProperties.getUrl())
-					.username(dataSourceProperties.getUsername())
-					.password(dataSourceProperties.getPassword())
-					.type(HikariDataSource.class)
-					.build();
-			dataSource.setMaximumPoolSize(maxPoolSize);
-			return dataSource;
+		HikariDataSource dataSource = (HikariDataSource) DataSourceBuilder.create(dataSourceProperties.getClassLoader())
+				.driverClassName(dataSourceProperties.getDriverClassName()).url(dataSourceProperties.getUrl())
+				.username(dataSourceProperties.getUsername()).password(dataSourceProperties.getPassword())
+				.type(HikariDataSource.class).build();
+		dataSource.setMaximumPoolSize(maxPoolSize);
+		return dataSource;
 	}
 
 	/*
@@ -104,11 +112,15 @@ public class JpaConfiguration {
 	private Properties jpaProperties() {
 		Properties properties = new Properties();
 		properties.put("hibernate.dialect", environment.getRequiredProperty("datasource.sampleapp.hibernate.dialect"));
-		//properties.put("hibernate.hbm2ddl.auto", environment.getRequiredProperty("datasource.sampleapp.hibernate.hbm2ddl.method"));
-		properties.put("hibernate.show_sql", environment.getRequiredProperty("datasource.sampleapp.hibernate.show_sql"));
-		properties.put("hibernate.format_sql", environment.getRequiredProperty("datasource.sampleapp.hibernate.format_sql"));
-		if(StringUtils.isNotEmpty(environment.getRequiredProperty("datasource.sampleapp.defaultSchema"))){
-			properties.put("hibernate.default_schema", environment.getRequiredProperty("datasource.sampleapp.defaultSchema"));
+		// properties.put("hibernate.hbm2ddl.auto",
+		// environment.getRequiredProperty("datasource.sampleapp.hibernate.hbm2ddl.method"));
+		properties.put("hibernate.show_sql",
+				environment.getRequiredProperty("datasource.sampleapp.hibernate.show_sql"));
+		properties.put("hibernate.format_sql",
+				environment.getRequiredProperty("datasource.sampleapp.hibernate.format_sql"));
+		if (StringUtils.isNotEmpty(environment.getRequiredProperty("datasource.sampleapp.defaultSchema"))) {
+			properties.put("hibernate.default_schema",
+					environment.getRequiredProperty("datasource.sampleapp.defaultSchema"));
 		}
 		return properties;
 	}
@@ -122,13 +134,18 @@ public class JpaConfiguration {
 	}
 
 	@Bean
-    public Properties responseMessage(){
-        Properties responseMessage = new Properties();
-        try {
-            responseMessage.load(new ClassPathResource("responsemessage.properties").getInputStream());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        return responseMessage;
-    }
+	public Properties responseMessage() {
+		Properties responseMessage = new Properties();
+		try {
+			responseMessage.load(new ClassPathResource("responsemessage.properties").getInputStream());
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return responseMessage;
+	}
+
+	@Override
+	public void addResourceHandlers(ResourceHandlerRegistry registry) {
+		registry.addResourceHandler("/resources/**").addResourceLocations("file:/opt/tomcat/webapps/lyca-profile/resources/");
+	}
 }

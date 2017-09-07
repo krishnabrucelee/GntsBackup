@@ -195,6 +195,7 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 				}
 				if (callDetails.get("callStatus").toString().equals(CallDetails.CallStatus.ATTENDED.toString())) {
 					callDetailsObj1.setCallStatus(CallDetails.CallStatus.ATTENDED);
+					callDetailsObj1.setCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
 					jsonObj.put("callStatus", CallLog.CallStatus.ATTENDED);
 					jsonObj.put("callDetailsUpdateFlag", true);
 					JSONObject jsonPushMsg = new JSONObject();
@@ -270,6 +271,16 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 										jsonObj1.put("callDetails", callDetailsObj1);
 										jsonObj1.put("user", callToUser);
 										callLogService.addCallLog(jsonObj1);
+										
+										// End caller when missed call
+										List<CallLog> callLogDetailsList = callLogService
+												.getOnCallLiveUsersWithOutTimeNOTNull(callDetailsId);
+										if (callLogDetailsList != null
+												&& callLogDetailsList.size() <= 2) {
+												callLogDetails.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
+												callLogDetails.setUpdatedDateTime(new Date());
+												callLogDetails.setCallStatus(CallLog.CallStatus.CALLEND);
+										}
 									} else {
 										callLogUser.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
 										callLogUser.setUpdatedDateTime(new Date());
@@ -308,9 +319,9 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 												JSONObject jsonObj1 = new JSONObject();
 												jsonObj1.put("callStatus", CallLog.CallStatus.REJECTED);
 												jsonObj1.put("callDetailsUpdateFlag", true);
-												jsonObj1.put("inCallTime",
-														new java.sql.Timestamp(System.currentTimeMillis()));
 												jsonObj1.put("outCallTime",
+														new java.sql.Timestamp(System.currentTimeMillis()));
+												jsonObj1.put("inCallTime",
 														new java.sql.Timestamp(System.currentTimeMillis()));
 												jsonObj1.put("updatedDateTime", new Date());
 												jsonObj1.put("callDetails", callDetailsObj1);
@@ -331,9 +342,9 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 											JSONObject jsonObj1 = new JSONObject();
 											jsonObj1.put("callStatus", CallLog.CallStatus.REJECTED);
 											jsonObj1.put("callDetailsUpdateFlag", true);
-											jsonObj1.put("inCallTime",
-													new java.sql.Timestamp(System.currentTimeMillis()));
 											jsonObj1.put("outCallTime",
+													new java.sql.Timestamp(System.currentTimeMillis()));
+											jsonObj1.put("inCallTime",
 													new java.sql.Timestamp(System.currentTimeMillis()));
 											jsonObj1.put("updatedDateTime", new Date());
 											jsonObj1.put("callDetails", callDetailsObj1);
@@ -357,6 +368,7 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 												callLogInitiatorUser.setUpdatedDateTime(new Date());
 												callLogInitiatorUser.setCallStatus(CallLog.CallStatus.CALLEND);
 												callLogService.update(callLogInitiatorUser);
+												callLogDetails = callLogInitiatorUser;
 											}
 										}
 
@@ -428,6 +440,35 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 																			"CALLEND", jsonPushMsg);
 															jsonObj.put("pusherResponse", jsonpusher);
 														}
+													}
+
+													if (callDetails.get("key") != null && callDetails.get("key")
+															.toString().equals("MISSED_CALL")) {
+														JSONObject jsonObj1 = new JSONObject();
+														jsonObj1.put("callStatus", CallLog.CallStatus.MISSEDCALL);
+														jsonObj1.put("callDetailsUpdateFlag", true);
+														jsonObj1.put("inCallTime",
+																new java.sql.Timestamp(System.currentTimeMillis()));
+														jsonObj1.put("outCallTime",
+																new java.sql.Timestamp(System.currentTimeMillis()));
+														jsonObj1.put("updatedDateTime", new Date());
+														jsonObj1.put("callDetails", callDetailsObj);
+														jsonObj1.put("user", callDetailsObj.getCallTo());
+														callLogService.addCallLog(jsonObj1);
+													}
+
+													if (callDetails.get("key") == null) {
+														JSONObject jsonObj1 = new JSONObject();
+														jsonObj1.put("callStatus", CallLog.CallStatus.MISSEDCALL);
+														jsonObj1.put("callDetailsUpdateFlag", true);
+														jsonObj1.put("inCallTime",
+																new java.sql.Timestamp(System.currentTimeMillis()));
+														jsonObj1.put("outCallTime",
+																new java.sql.Timestamp(System.currentTimeMillis()));
+														jsonObj1.put("updatedDateTime", new Date());
+														jsonObj1.put("callDetails", callDetailsObj);
+														jsonObj1.put("user", callDetailsObj.getCallTo());
+														callLogService.addCallLog(jsonObj1);
 													}
 												}
 												System.out.println("callLog updated.");

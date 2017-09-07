@@ -443,7 +443,7 @@ public class ContactsServiceImpl implements ContactsService {
 						contactJson.put("contactBlocked", contactsDetails.getContactBlocked());
 						contactJson.put("contactRemoved", contactsDetails.getContactRemoved());
 						if (contactsDetails.getContactUser() != null) {
-							Contacts contactUser = getContactsByCallUsersAndMobile((Integer) contacts.get("userId"),
+							Contacts contactUser = getContactsByCallUsersAndMobile(contactsId,
 									contactsDetails.getMobileNumber(), contactsDetails.getContactUser().getUserId());
 							if (contactUser != null) {
 								if (contactUser.getContactBlocked() == true

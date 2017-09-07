@@ -121,9 +121,11 @@ public class CallLogServiceImpl implements CallLogService {
 					status.put("responseMessage", responseMessage.get("group.call.activated"));
 				}
 				System.out.println("Inside Dao11 Add Call log");
+				
 				// Update call status
-				callLogRepository.updateCallStatusWithDateTime(callLogDetails.getCallDetails().getId(),
-						callLogDetails.getCallStatus(), new Date());
+					callLogRepository.updateCallStatusWithDateTime(callLogDetails.getCallDetails().getId(),
+							callLogDetails.getCallStatus(), new Date());
+				
 				status.put("responseStatus", true);
 				status.put("responseMessage", "CallLog details updated");
 			}
@@ -267,10 +269,12 @@ public class CallLogServiceImpl implements CallLogService {
 								callLogJson.put("outCallTime", callLogDetails.getOutCallTime());
 							}
 							callLogJson.put("lycaSubscriberId", callToUser.getLycaSubscriberId());
-							if (callLogDetails.getOutCallTime() != null && callLogDetails.getInCallTime() != null) {
+							if (callLogDetails.getCallDetails().getCallTime() != null) {
 								callLogJson.put("callDuration", 
 										DateConvertUtil.getDateDiff(callLogDetails.getOutCallTime().toString(), 
-												callLogDetails.getInCallTime().toString()));
+												callLogDetails.getCallDetails().getCallTime().toString()));
+							} else {
+								callLogJson.put("callDuration", "0s");
 							}
 							callLogJson.put("profileStatus", callToUser.getProfileStatus());
 							if (callLogDetails.getCallDetails().getCallStatus() != null) {
