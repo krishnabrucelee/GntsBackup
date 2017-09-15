@@ -24,6 +24,7 @@ import com.lyca.api.model.Contacts;
 import com.lyca.api.repository.ContactsRepository;
 import com.lyca.api.service.ContactsService;
 import com.lyca.api.service.CountryService;
+import com.lyca.api.service.FCMNotificationService;
 import com.lyca.api.service.InvitieService;
 import com.lyca.api.service.PusherNotificationService;
 import com.lyca.api.service.UserService;
@@ -55,6 +56,9 @@ public class ContactsServiceImpl implements ContactsService {
 	@Autowired
 	private PusherNotificationService pusherNotificationService;
 
+	@Autowired
+	private FCMNotificationService fCMNotificationService;
+	
 	@Autowired
 	@Qualifier("responseMessage")
 	private Properties responseMessage;
@@ -257,6 +261,7 @@ public class ContactsServiceImpl implements ContactsService {
 							Invities invitieDetails = new Invities();
 							invitieDetails.setBaseUser(contactsDetails.getBaseUser());
 							invitieDetails.setInviteeMobileNumber(contacts.get("mobileNumber").toString());
+							invitieDetails.setInvitationCode(UUID.randomUUID().toString().substring(0, 6));
 							if (contacts.get("inviteeStatus") != null) {
 								if (contacts.get("inviteeStatus").toString()
 										.equals(Contacts.InviteeStatus.ACCEPTED.toString())) {
@@ -266,6 +271,16 @@ public class ContactsServiceImpl implements ContactsService {
 							} else {
 								invitieDetails.setInviteeStatus(Invities.InviteeStatus.PENDING);
 								contactsDetails.setInviteeStatus(Contacts.InviteeStatus.PENDING);
+								User contactUser = userService.getUserByMobileNumber(contacts.get("mobileNumber").toString());
+								if (contactUser == null) {
+									JSONObject smsGateway = userService.smsGateway(contactsDetails.getCountry().getCountryIsdCode(), contacts.get("mobileNumber").toString(),
+											invitieDetails.getInvitationCode(), "You have an invite request. Lyca Inivite code is");
+									if (smsGateway.get("responseStatus").equals(false)) {
+										status.put("responseStatus", false);
+										status.put("responseMessage", smsGateway.get("responseMessage").toString());
+										return status;
+									}
+								}
 								// Pusher
 								Integer inviteCount = invitieService.getMyInvitieListByMobileNumberCount(contacts);
 								JSONObject jsonPushMsg = new JSONObject();
@@ -274,8 +289,27 @@ public class ContactsServiceImpl implements ContactsService {
 								JSONObject jsonpusher = pusherNotificationService
 										.pushMessasge(contacts.get("mobileNumber").toString(), "INVITE", jsonPushMsg);
 								status.put("pusherResponse", jsonpusher);
+								User userContact = userService.getUserByMobileNumber(contacts.get("mobileNumber").toString());
+								if (userContact != null) {
+									if (userContact.getFcmToken() != null) {
+										
+										String[] data = userContact.getFcmToken().split("\\|");
+										System.out.println(data.length);
+										for (int i = 0; i < data.length; i++) {
+											System.out.println(data[i]);
+											jsonPushMsg.put("event", "INVITE");
+											JSONObject fcmpusher = fCMNotificationService.pushFCMNotification(data[i], jsonPushMsg);
+											status.put("fcmResponse", fcmpusher);
+										}
+										
+//										jsonPushMsg.put("event", "INVITE");
+//										JSONObject fcmpusher =	fCMNotificationService.pushFCMNotification(userContact.getFcmToken(), jsonPushMsg);
+//										status.put("fcmResponse", fcmpusher);
+									}
+								}
+								
 							}
-							invitieDetails.setInvitationCode(UUID.randomUUID().toString().substring(0, 6));
+							
 							invitieDetails.setCreatedDateTime(new Date());
 							List<Invities> addInvitieDetails = new ArrayList<Invities>();
 							contactsDetails.setContactUser(contactUserDetails);

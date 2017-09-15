@@ -4,14 +4,23 @@
 package com.lyca.api.service.impl;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
+import java.util.regex.Pattern;
+
 import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.RestTemplate;
+
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lyca.api.model.CallDetails;
@@ -19,6 +28,7 @@ import com.lyca.api.repository.CallDetailsRepository;
 import com.lyca.api.service.CallDetailsService;
 import com.lyca.api.service.UserService;
 import com.lyca.api.service.ContactsService;
+import com.lyca.api.service.FCMNotificationService;
 import com.lyca.api.model.Contacts;
 import com.lyca.api.model.CallDetails.CallStatus;
 import com.lyca.api.service.CallLogService;
@@ -50,6 +60,9 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 	private PusherNotificationService pusherNotificationService;
 
 	@Autowired
+	private FCMNotificationService fCMNotificationService;
+
+	@Autowired
 	@Qualifier("responseMessage")
 	private Properties responseMessage;
 
@@ -64,6 +77,9 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 
 			if (callDetails.get("callDetailsId") == null) {
 				callDetailsStatus = save(callDetails);
+				if (callDetailsStatus.containsKey("reCall")) {
+					return callDetailsStatus;
+				}
 				ObjectMapper om = new ObjectMapper();
 				om.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 				callDetailsObj = om.convertValue(callDetailsStatus.get("callDetails"), CallDetails.class);
@@ -73,19 +89,38 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 				User callToUser = userService.find(callToId);
 				user = userService.find(callerId);
 				if (callToUser != null && user != null) {
-					if ((Boolean) callDetailsStatus.get("responseStatus") == true) {
-						JSONObject jsonPushMsg = new JSONObject();
-						List<User> callerList = new ArrayList<>();
-						callerList.add(user);
-						Contacts contactUser = contactsService.getContactsByCallUsersAndMobile(callToUser.getUserId(),
-								user.getMobileNumber(), user.getUserId());
-						jsonPushMsg.put("callMembers", callerList);
-						jsonPushMsg.put("callerNickName", contactUser.getNickName());
-						jsonPushMsg.put("callDetailsId", callDetailsObj.getId());
-						jsonPushMsg.put("message", "Calling...");
-						JSONObject jsonpusher = pusherNotificationService.pushMessasge(callToUser.getMobileNumber(),
-								"CALL", jsonPushMsg);
-						callDetailsStatus.put("pusherResponse", jsonpusher);
+					if (callDetailsObj != null) {
+						if ((Boolean) callDetailsStatus.get("responseStatus") == true) {
+							JSONObject jsonPushMsg = new JSONObject();
+							List<User> callerList = new ArrayList<>();
+							callerList.add(user);
+							Contacts contactUser = contactsService.getContactsByCallUsersAndMobile(
+									callToUser.getUserId(), user.getMobileNumber(), user.getUserId());
+							jsonPushMsg.put("callMembers", callerList);
+							jsonPushMsg.put("callerNickName", contactUser.getNickName());
+							jsonPushMsg.put("callDetailsId", callDetailsObj.getId());
+							jsonPushMsg.put("message", "Calling...");
+							
+							if (callToUser.getStbUser() == true) {
+								JSONObject jsonpusher = pusherNotificationService
+										.pushMessasge(callToUser.getMobileNumber(), "CALL", jsonPushMsg);
+								callDetailsStatus.put("pusherResponse", jsonpusher);
+							}
+							if (callToUser.getFcmToken() != null) {
+								
+								 String[] data = callToUser.getFcmToken().split("\\|");
+							        System.out.println(data.length);
+								for (int i = 0; i < data.length; i++) {
+									System.out.println(data[i]);
+									jsonPushMsg.put("event", "CALL");
+									JSONObject fcmpusher = fCMNotificationService
+											.pushFCMNotification(data[i], jsonPushMsg);
+									callDetailsStatus.put("fcmResponse", fcmpusher);
+								}
+								
+							}
+
+						}
 					}
 				} else {
 					jsonObj.put("responseStatus", false);
@@ -147,6 +182,24 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 								JSONObject jsonpusher = pusherNotificationService.pushMessasge(user.getMobileNumber(),
 										"CALL", jsonPushMsg);
 								callDetailsStatus.put("pusherResponse", jsonpusher);
+
+								if (user.getFcmToken() != null) {
+									
+									 String[] data = user.getFcmToken().split("\\|");
+								        System.out.println(data.length);
+									for (int i = 0; i < data.length; i++) {
+										System.out.println(data[i]);
+										jsonPushMsg.put("event", "CALL");
+										JSONObject fcmpusher = fCMNotificationService
+												.pushFCMNotification(data[i], jsonPushMsg);
+										callDetailsStatus.put("fcmResponse", fcmpusher);
+									}
+									
+//									jsonPushMsg.put("event", "CALL");
+//									JSONObject fcmpusher = fCMNotificationService
+//											.pushFCMNotification(user.getFcmToken(), jsonPushMsg);
+//									callDetailsStatus.put("fcmResponse", fcmpusher);
+								}
 							}
 						} else {
 							jsonObj.put("responseStatus", false);
@@ -206,6 +259,23 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 							"CALLSTARTED", jsonPushMsg);
 					jsonObj.put("pusherResponse", jsonpusher);
 
+					if (callToUser.getFcmToken() != null) {
+
+						String[] data = callToUser.getFcmToken().split("\\|");
+						System.out.println(data.length);
+						for (int i = 0; i < data.length; i++) {
+							System.out.println(data[i]);
+							jsonPushMsg.put("event", "CALLSTARTED");
+							JSONObject fcmpusher = fCMNotificationService.pushFCMNotification(data[i], jsonPushMsg);
+							callDetailsStatus.put("fcmResponse", fcmpusher);
+						}
+
+						// jsonPushMsg.put("event", "CALLSTARTED");
+						// JSONObject fcmpusher =
+						// fCMNotificationService.pushFCMNotification(callToUser.getFcmToken(),
+						// jsonPushMsg);
+						// callDetailsStatus.put("fcmResponse", fcmpusher);
+					}
 				}
 				jsonObj.put("callDetails", callDetailsObj1);
 				jsonObj.put("user", callToUser);
@@ -271,15 +341,15 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 										jsonObj1.put("callDetails", callDetailsObj1);
 										jsonObj1.put("user", callToUser);
 										callLogService.addCallLog(jsonObj1);
-										
+
 										// End caller when missed call
 										List<CallLog> callLogDetailsList = callLogService
 												.getOnCallLiveUsersWithOutTimeNOTNull(callDetailsId);
-										if (callLogDetailsList != null
-												&& callLogDetailsList.size() <= 2) {
-												callLogDetails.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
-												callLogDetails.setUpdatedDateTime(new Date());
-												callLogDetails.setCallStatus(CallLog.CallStatus.CALLEND);
+										if (callLogDetailsList != null && callLogDetailsList.size() <= 2) {
+											callLogDetails
+													.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
+											callLogDetails.setUpdatedDateTime(new Date());
+											callLogDetails.setCallStatus(CallLog.CallStatus.CALLEND);
 										}
 									} else {
 										callLogUser.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
@@ -303,6 +373,22 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 										.pushMessasge(callerUser.getMobileNumber(), "MCALL", jsonPushMsg);
 								jsonObj.put("pusherResponse", jsonpusher);
 
+								if (callerUser.getFcmToken() != null) {
+									
+									String[] data = callerUser.getFcmToken().split("\\|");
+									System.out.println(data.length);
+									for (int i = 0; i < data.length; i++) {
+										System.out.println(data[i]);
+										jsonPushMsg.put("event", "MCALL");
+										JSONObject fcmpusher = fCMNotificationService.pushFCMNotification(data[i], jsonPushMsg);
+										callDetailsStatus.put("fcmResponse", fcmpusher);
+									}
+									
+//									jsonPushMsg.put("event", "MCALL");
+//									JSONObject fcmpusher = fCMNotificationService
+//											.pushFCMNotification(callerUser.getFcmToken(), jsonPushMsg);
+//									callDetailsStatus.put("fcmResponse", fcmpusher);
+								}
 							}
 
 							if (callDetails.get("callStatus").toString()
@@ -351,13 +437,13 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 											jsonObj1.put("user", callToUser);
 											callLogService.addCallLog(jsonObj1);
 										} else {
-											callLogUser.setOutCallTime(
-													new java.sql.Timestamp(System.currentTimeMillis()));
+											callLogUser
+													.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
 											callLogUser.setUpdatedDateTime(new Date());
 											callLogUser.setCallStatus(CallLog.CallStatus.REJECTED);
 											callLogService.update(callLogUser);
 										}
-										
+
 										// cut the initiator
 										List<CallLog> callLogInitiatorUserLists = callLogService
 												.getCallLogByCallIdAndUserIdList(callDetailsObj1.getId(), callUserId);
@@ -386,6 +472,23 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 								JSONObject jsonpusher = pusherNotificationService
 										.pushMessasge(callerUser.getMobileNumber(), "REJECT", jsonPushMsg);
 								jsonObj.put("pusherResponse", jsonpusher);
+
+								if (callerUser.getFcmToken() != null) {
+									
+									String[] data = callerUser.getFcmToken().split("\\|");
+									System.out.println(data.length);
+									for (int i = 0; i < data.length; i++) {
+										System.out.println(data[i]);
+										jsonPushMsg.put("event", "REJECT");
+										JSONObject fcmpusher = fCMNotificationService.pushFCMNotification(data[i], jsonPushMsg);
+										callDetailsStatus.put("fcmResponse", fcmpusher);
+									}
+									
+//									jsonPushMsg.put("event", "REJECT");
+//									JSONObject fcmpusher = fCMNotificationService
+//											.pushFCMNotification(callerUser.getFcmToken(), jsonPushMsg);
+//									callDetailsStatus.put("fcmResponse", fcmpusher);
+								}
 							}
 
 							if (callDetails.get("callStatus").toString()
@@ -421,6 +524,26 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 																	.pushMessasge(callL.getUser().getMobileNumber(),
 																			"CALLEND", jsonPushMsg);
 															jsonObj.put("pusherResponse", jsonpusher);
+
+															if (callL.getUser().getFcmToken() != null) {
+																
+																String[] data = callL.getUser().getFcmToken().split("\\|");
+																System.out.println(data.length);
+																for (int i = 0; i < data.length; i++) {
+																	System.out.println(data[i]);
+																	jsonPushMsg.put("event", "CALLEND");
+																	JSONObject fcmpusher = fCMNotificationService.pushFCMNotification(data[i], jsonPushMsg);
+																	callDetailsStatus.put("fcmResponse", fcmpusher);
+																}
+																
+																
+//																jsonPushMsg.put("event", "CALLEND");
+//																JSONObject fcmpusher = fCMNotificationService
+//																		.pushFCMNotification(
+//																				callL.getUser().getFcmToken(),
+//																				jsonPushMsg);
+//																callDetailsStatus.put("fcmResponse", fcmpusher);
+															}
 														}
 													}
 												} else if (callLogDetailsList != null
@@ -439,6 +562,25 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 																					.getMobileNumber(),
 																			"CALLEND", jsonPushMsg);
 															jsonObj.put("pusherResponse", jsonpusher);
+
+															if (callDetailsObj.getCallTo().getFcmToken() != null) {
+																
+																String[] data = callDetailsObj.getCallTo().getFcmToken().split("\\|");
+																System.out.println(data.length);
+																for (int i = 0; i < data.length; i++) {
+																	System.out.println(data[i]);
+																	jsonPushMsg.put("event", "CALLEND");
+																	JSONObject fcmpusher = fCMNotificationService.pushFCMNotification(data[i], jsonPushMsg);
+																	callDetailsStatus.put("fcmResponse", fcmpusher);
+																}
+																
+																
+//																jsonPushMsg.put("event", "CALLEND");
+//																JSONObject fcmpusher = fCMNotificationService
+//																		.pushFCMNotification(callDetailsObj.getCallTo()
+//																				.getFcmToken(), jsonPushMsg);
+//																callDetailsStatus.put("fcmResponse", fcmpusher);
+															}
 														}
 													}
 
@@ -620,13 +762,29 @@ public class CallDetailsServiceImpl implements CallDetailsService {
 				}
 			} else {
 				status.put("responseStatus", false);
-				status.put("responseMessage", responseMessage.get("on.call.active"));
+				// status.put("responseMessage",
+				// responseMessage.get("on.call.active"));
+				checkActiveCall.setInCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
 				checkActiveCall.setOutCallTime(new java.sql.Timestamp(System.currentTimeMillis()));
 				checkActiveCall.setUpdatedDateTime(new Date());
 				checkActiveCall.setCallStatus(CallLog.CallStatus.CALLEND);
 				CallLog callLogUpdateActiveCall = callLogService.updateActiveCall(checkActiveCall,
 						checkActiveCall.getCallDetails().getCallerId().getUserId());
-				return status;
+
+				RestTemplate restTemplate = new RestTemplate();
+				
+				HttpHeaders headers = new HttpHeaders();
+				headers.setContentType(MediaType.APPLICATION_JSON);
+				 JSONObject makeOnCall = new JSONObject();
+				 makeOnCall.put("callerId", checkActiveCall.getCallDetails().getCallerId().getUserId());
+				 makeOnCall.put("callTo", checkActiveCall.getCallDetails().getCallTo().getUserId());
+				 makeOnCall.put("callStatus", "CALLING");
+				// Recall when on call is active
+				HttpEntity<HashMap<String, Object>> stbRequest = new HttpEntity<HashMap<String, Object>>(makeOnCall, headers);
+				JSONObject stbResponse = restTemplate.postForObject(responseMessage.get("api.url") + "callDetails/add", stbRequest,
+						JSONObject.class);
+				stbResponse.put("reCall", true);
+				return stbResponse;
 			}
 		} else {
 			status.put("responseStatus", false);

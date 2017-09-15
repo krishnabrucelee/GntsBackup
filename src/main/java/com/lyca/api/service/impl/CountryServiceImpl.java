@@ -105,4 +105,9 @@ public class CountryServiceImpl implements CountryService {
 		return null;
 	}
 
+	@Override
+	public Country findByIsoCode(String countryIsoCode) {
+		return countryRepository.findByIsoCode(countryIsoCode);
+	}
+
 }

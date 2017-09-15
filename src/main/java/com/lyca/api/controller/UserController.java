@@ -74,10 +74,6 @@ public class UserController {
 	 */
 	@RequestMapping(value = "/add", method = RequestMethod.POST)
 	public @ResponseBody JSONObject addUser(@RequestBody JSONObject user) {
-
-		if (user.get("countryId") == null) {
-			user.put("countryId", 99);
-		}
 		return userService.addUser(user);
 	}
 

@@ -56,5 +56,9 @@ public interface UserService extends CRUDService<User> {
 	public User getUserByMobileNumber(String mobileNumber);
 
 	public JSONObject sendOtp(JSONObject otp);
+
+	public JSONObject smsGateway(String isdCode, String mobileNumber, String  code, String message);
+
+	public JSONObject storeUserFcmToken(String deviceId, String userId);
 	
 }

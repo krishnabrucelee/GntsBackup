@@ -27,4 +27,7 @@ public interface UserRepository extends JpaRepository<User, Integer> {
     @Query("select user from User user where user.mobileNumber = :mobileNumber and user.otp = :otp")
 	List<User> otpVerification(@Param("mobileNumber") String mobileNumber, @Param("otp") String otp);
 
+    @Query("select user from User user where user.id = :userId")
+    User getUserByUserId(@Param("userId") Integer userId);
+
 }

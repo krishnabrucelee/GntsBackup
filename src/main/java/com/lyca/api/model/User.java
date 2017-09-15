@@ -74,6 +74,9 @@ public class User implements Serializable {
 	@Column(name = "updated_date")
 	private Date updatedDateTime;
 	
+	@Column(name = "fcm_token")
+	private String fcmToken;
+	
 	public enum OnlineStatus {
 		AVAILABLE, OFFLINE, DONOTDISTURB
 	}
@@ -183,7 +186,7 @@ public class User implements Serializable {
 	/**
 	 * @return the countryId
 	 */
-	@JsonIgnore
+	@JsonGetter
 	public Country getCountry() {
 		return country;
 	}
@@ -191,7 +194,7 @@ public class User implements Serializable {
 	/**
 	 * @param countryId the countryId to set
 	 */
-	@JsonGetter
+	@JsonIgnore
 	public void setCountry(Country country) {
 		this.country = country;
 	}
@@ -292,6 +295,33 @@ public class User implements Serializable {
 	 */
 	public void setOtpStatus(Boolean otpStatus) {
 		this.otpStatus = otpStatus;
+	}
+
+	/**
+	 * @return the fcmToken
+	 */
+	public String getFcmToken() {
+		return fcmToken;
+	}
+
+	/**
+	 * @param fcmToken the fcmToken to set
+	 */
+	public void setFcmToken(String fcmToken) {
+		this.fcmToken = fcmToken;
+	}
+
+	/* (non-Javadoc)
+	 * @see java.lang.Object#toString()
+	 */
+	@Override
+	public String toString() {
+		return "[userId=" + userId + ", firstName=" + firstName + ", lastName=" + lastName + ", mobileNumber="
+				+ mobileNumber + ", stbUser=" + stbUser + ", lycaSubscriberId=" + lycaSubscriberId + ", password="
+				+ password + ", country=" + country + ", profilePicUrl=" + profilePicUrl + ", profileStatus="
+				+ profileStatus + ", onlineStatus=" + onlineStatus + ", otp=" + otp + ", otpStatus=" + otpStatus
+				+ ", createdDateTime=" + createdDateTime + ", updatedDateTime=" + updatedDateTime + ", fcmToken="
+				+ fcmToken + "]";
 	}
 
 }

@@ -6,14 +6,21 @@ package com.lyca.api.service.impl;
 import java.sql.SQLIntegrityConstraintViolationException;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import java.util.UUID;
 import org.json.simple.JSONObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.RestClientException;
+import org.springframework.web.client.RestTemplate;
+
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.lyca.api.model.User;
@@ -77,6 +84,9 @@ public class UserServiceImpl implements UserService {
 									Country countryDetails = countryservice.find(countryId);
 									userDetails.setCountry(countryDetails);
 								}
+								if (user.get("fcmToken").toString() != null && !user.get("fcmToken").toString().isEmpty()) {
+									userDetails.setFcmToken(user.get("fcmToken").toString());
+								}
 								userDetails.setOnlineStatus(User.OnlineStatus.AVAILABLE);
 								userDetails.setProfileStatus("AVAILABLE");
 								userDetails.setCreatedDateTime(new Date());
@@ -102,10 +112,25 @@ public class UserServiceImpl implements UserService {
 							userDetails.setCountry(countryDetails);
 						}
 						User userr = getUserByMobileNumber(user.get("mobileNumber").toString());
+						if (userr == null) {
+							userr = getUserByMobileNumber(user.get("mobileAuth").toString());
+						}
 						if (userr != null && userr.getStbUser() && userr.getLycaSubscriberId() != null) {
 							userr.setOnlineStatus(User.OnlineStatus.AVAILABLE);
-							userDetails.setProfileStatus("AVAILABLE");
-							userr.setOtp(UUID.randomUUID().toString().substring(0, 6));
+							userr.setProfileStatus("AVAILABLE");
+							if (user.get("fcmToken").toString() != null && !user.get("fcmToken").toString().isEmpty()) {
+								if (userr.getFcmToken() != null) {
+									userr.setFcmToken(userr.getFcmToken() + user.get("fcmToken").toString() + "|");
+								} else {
+									userr.setFcmToken(user.get("fcmToken").toString() + "|");
+								}
+							}
+							userr.setOtp(user.get("otpCode").toString());
+							userr.setMobileNumber(user.get("mobileNumber").toString());
+							// Sms
+							JSONObject smsGateway = smsGateway(userDetails.getCountry().getCountryIsdCode(),
+									user.get("mobileNumber").toString(), user.get("otpCode").toString(),
+									"Lyca otp code is");
 							userr.setOtpStatus(false);
 							userr.setUpdatedDateTime(new Date());
 							userRepository.save(userr);
@@ -121,18 +146,19 @@ public class UserServiceImpl implements UserService {
 					}
 				} else {
 					if ((Boolean) user.get("stbUser") == true) {
-						if (user.get("countryId") != null) {
-							Integer countryId = Integer.parseInt(user.get("countryId").toString());
-							Country countryDetails = countryservice.find(countryId);
-							userDetails.setCountry(countryDetails);
+						if (user.get("countryIsoCode") != null) {
+							Country countryDetails = countryservice
+									.findByIsoCode(user.get("countryIsoCode").toString());
+							if (countryDetails != null) {
+								userDetails.setCountry(countryDetails);
+							}
 						}
 						if (!user.get("lycaSubscriberId").toString().isEmpty()) {
 							User userr = getUserBySubscriberId(user.get("lycaSubscriberId").toString());
 							if (userr == null) {
-								userDetails.setMobileNumber(
-										String.valueOf(new java.sql.Timestamp(System.currentTimeMillis()).getTime()));
-								userDetails.setFirstName("F-" + user.get("lycaSubscriberId").toString());
-								userDetails.setLastName("L-" + user.get("lycaSubscriberId").toString());
+								userDetails.setMobileNumber(user.get("mobileNumber").toString());
+								userDetails.setFirstName(user.get("firstName").toString());
+								userDetails.setLastName(user.get("lastName").toString());
 								userDetails.setOnlineStatus(User.OnlineStatus.AVAILABLE);
 								userDetails.setProfileStatus("AVAILABLE");
 								userDetails.setOtpStatus(false);
@@ -159,20 +185,20 @@ public class UserServiceImpl implements UserService {
 
 			} catch (Exception e) {
 				Throwable tt = e.getCause();
-//				if (tt instanceof SQLIntegrityConstraintViolationException) {
-//					tt.printStackTrace();
-//					status.put("responseStatus", false);
-//					status.put("responseMessage",
-//							responseMessage.get("duplicate.mobile.number.entered.User.details.not.saved"));
-//					status.put("Error", tt.getMessage());
-//					return status;
-//				} else {
-					e.printStackTrace();
-					status.put("responseStatus", false);
-					status.put("responseMessage", responseMessage.get("userSaveFailed"));
-					status.put("Error", e.getMessage());
-					return status;
-//				}
+				// if (tt instanceof SQLIntegrityConstraintViolationException) {
+				// tt.printStackTrace();
+				// status.put("responseStatus", false);
+				// status.put("responseMessage",
+				// responseMessage.get("duplicate.mobile.number.entered.User.details.not.saved"));
+				// status.put("Error", tt.getMessage());
+				// return status;
+				// } else {
+				e.printStackTrace();
+				status.put("responseStatus", false);
+				status.put("responseMessage", responseMessage.get("userSaveFailed"));
+				status.put("Error", e.getMessage());
+				return status;
+				// }
 			}
 		} else {
 			status.put("responseStatus", false);
@@ -321,54 +347,54 @@ public class UserServiceImpl implements UserService {
 		status.put("responseStatus", true);
 		List<User> userList = null;
 		if ((otp.get("mobileNumber") != null && !otp.get("mobileNumber").toString().isEmpty())) {
-				if (otp.get("otp") != null && !otp.get("otp").toString().isEmpty()) {
-					
-			try {
-				userList = userRepository.otpVerification(otp.get("mobileNumber").toString(),
-						otp.get("otp").toString());
-				if (userList.size() == 1) {
-					for (User userDetails : userList) {
-						userDetails.setOtpStatus(true);
-						userRepository.save(userDetails);
-						List<User> users = new ArrayList<>();
-						users.add(userDetails);
-						status.put("user", users.get(0));
-						status.put("responseMessage", responseMessage.get("otp.verified"));
-						if (users.get(0).getStbUser() == false) {
-							if (users.get(0).getMobileNumber() != null) {
-								Invities myInvitie = invitiesservice
-										.getInvitiesByMobileNumber(users.get(0).getMobileNumber());
-								JSONObject json = new JSONObject();
-								json.put("invitieId", myInvitie.getInvitieId());
-								json.put("inviteeStatus", Invities.InviteeStatus.ACCEPTED);
-								json.put("baseUserId", users.get(0).getUserId());
-								json.put("mobileNumber", myInvitie.getInviteeMobileNumber());
-								json.put("contactMobileNumber", myInvitie.getBaseUser().getMobileNumber());
-								if (myInvitie.getBaseUser().getFirstName() != null) {
-									json.put("nickName", myInvitie.getBaseUser().getFirstName());
-								} else {
-									json.put("nickName", myInvitie.getBaseUser().getLycaSubscriberId());
+			if (otp.get("otp") != null && !otp.get("otp").toString().isEmpty()) {
+
+				try {
+					userList = userRepository.otpVerification(otp.get("mobileNumber").toString(),
+							otp.get("otp").toString());
+					if (userList.size() == 1) {
+						for (User userDetails : userList) {
+							userDetails.setOtpStatus(true);
+							userRepository.save(userDetails);
+							List<User> users = new ArrayList<>();
+							users.add(userDetails);
+							status.put("user", users.get(0));
+							status.put("responseMessage", responseMessage.get("otp.verified"));
+							if (users.get(0).getStbUser() == false) {
+								if (users.get(0).getMobileNumber() != null) {
+									Invities myInvitie = invitiesservice
+											.getInvitiesByMobileNumber(users.get(0).getMobileNumber());
+									JSONObject json = new JSONObject();
+									json.put("invitieId", myInvitie.getInvitieId());
+									json.put("inviteeStatus", Invities.InviteeStatus.ACCEPTED);
+									json.put("baseUserId", users.get(0).getUserId());
+									json.put("mobileNumber", myInvitie.getInviteeMobileNumber());
+									json.put("contactMobileNumber", myInvitie.getBaseUser().getMobileNumber());
+									if (myInvitie.getBaseUser().getFirstName() != null) {
+										json.put("nickName", myInvitie.getBaseUser().getFirstName());
+									} else {
+										json.put("nickName", myInvitie.getBaseUser().getLycaSubscriberId());
+									}
+									json.put("countryId", myInvitie.getBaseUser().getCountry().getCountryId());
+									JSONObject invitieAcceptJson = invitiesservice.updateInvitie(json);
+									System.out.println(invitieAcceptJson);
 								}
-								json.put("countryId", myInvitie.getBaseUser().getCountry().getCountryId());
-								JSONObject invitieAcceptJson = invitiesservice.updateInvitie(json);
-								System.out.println(invitieAcceptJson);
 							}
 						}
+					} else {
+						status.put("responseStatus", false);
+						status.put("responseMessage", responseMessage.get("otp.verfication.failed"));
+						return status;
 					}
-				} else {
-					status.put("responseStatus", false);
-					status.put("responseMessage", responseMessage.get("otp.verfication.failed"));
 					return status;
+				} catch (Exception e) {
+					e.printStackTrace();
+					status.put("responseStatus", false);
 				}
-				return status;
-			} catch (Exception e) {
-				e.printStackTrace();
+			} else {
 				status.put("responseStatus", false);
+				status.put("responseMessage", responseMessage.get("otp.number.cannot.be.blank"));
 			}
-		} else {
-			status.put("responseStatus", false);
-			status.put("responseMessage", responseMessage.get("otp.number.cannot.be.blank"));
-		}
 		} else {
 			status.put("responseStatus", false);
 			status.put("responseMessage", responseMessage.get("mobile.number.cannot.be.blank"));
@@ -388,15 +414,23 @@ public class UserServiceImpl implements UserService {
 					user.setMobileNumber(otp.get("mobileNumber").toString());
 					user.setOtp(UUID.randomUUID().toString().substring(0, 6));
 					user.setUpdatedDateTime(new Date());
-					// String smsGateway =
+					// JSONObject smsGateway =
 					// smsGateway(otp.get("mobileNumber").toString(),
-					// user.getOtp());
+					// user.getOtp(), "Resend otp");
+					// if (smsGateway.get("responseStatus").equals(true)) {
+
 					userRepository.save(user);
 					status.put("otp", user.getOtp());
 					status.put("User", user);
 					status.put("responseMessage",
 							responseMessage.get("otp.for.mobile.number.successfully.generated.and.sent.to")
 									+ user.getMobileNumber());
+					// } else {
+					// status.put("responseStatus", false);
+					// status.put("responseMessage",
+					// responseMessage.get("otp.verfication.failed"));
+					// return status;
+					// }
 					return status;
 				} else {
 					status.put("responseStatus", false);
@@ -414,6 +448,39 @@ public class UserServiceImpl implements UserService {
 			status.put("responseMessage", responseMessage.get("mobile.number.cannot.be.blank"));
 		}
 		return status;
+	}
+
+	public JSONObject smsGateway(String isdCode, String mobileNumber, String otp, String message) {
+
+		RestTemplate restTemplate = new RestTemplate();
+
+		HttpHeaders headers = new HttpHeaders();
+		headers.setContentType(MediaType.APPLICATION_JSON);
+
+		JSONObject authJson = new JSONObject();
+		authJson.put("mobileNumber", "+" + isdCode + mobileNumber);
+		authJson.put("message", message + " " + otp);
+		HttpEntity<HashMap<String, Object>> request = new HttpEntity<HashMap<String, Object>>(authJson, headers);
+		JSONObject result = new JSONObject();
+		try {
+			JSONObject response = restTemplate.postForObject(responseMessage.get("api.url") + "lycaApi/sendSMS",
+					request, JSONObject.class);
+
+			System.out.println(response);
+			if (response.get("responseStatus").equals(true)) {
+				result.put("responseStatus", true);
+				result.put("responseMessage", responseMessage.get("otp.verified"));
+				result.put("validateResponse", response);
+			} else {
+				result.put("responseStatus", false);
+				result.put("responseMessage", responseMessage.get("otp.verfication.failed"));
+			}
+		} catch (RestClientException e) {
+			e.printStackTrace();
+			result.put("responseStatus", false);
+			result.put("responseMessage", responseMessage.get("otp.verfication.failed"));
+		}
+		return result;
 	}
 
 	@Override
@@ -449,5 +516,28 @@ public class UserServiceImpl implements UserService {
 	@Override
 	public User getUserByMobileNumber(String mobileNumber) {
 		return userRepository.getUserByMobileNumber(mobileNumber);
+	}
+
+	@Override
+	public JSONObject storeUserFcmToken(String deviceId, String userId) {
+		
+		JSONObject status = new JSONObject();
+		status.put("responseStatus", true);
+		
+		Integer id = Integer.parseInt(userId.toString());
+		User user = getUserByUserId(id);
+		if (user != null) {
+			user.setFcmToken(deviceId);
+			userRepository.save(user);
+			status.put("responseMessage", responseMessage.get("user.details.updated"));
+		} else {
+			status.put("responseStatus", false);
+			status.put("responseMessage", responseMessage.get("id.or.key/value.is.null.or.incorrect"));
+		}
+		return status;
+	}
+
+	private User getUserByUserId(Integer id) {
+		return userRepository.getUserByUserId(id);
 	}
 }

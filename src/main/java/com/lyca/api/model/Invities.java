@@ -56,7 +56,7 @@ public class Invities {
 	/**
 	 * @return the baseUser
 	 */
-	@JsonIgnore
+	@JsonGetter
 	public User getBaseUser() {
 		return baseUser;
 	}
@@ -65,7 +65,7 @@ public class Invities {
 	 * @param baseUser
 	 *            the baseUser to set
 	 */
-	@JsonGetter
+	@JsonIgnore
 	public void setBaseUser(User baseUser) {
 		this.baseUser = baseUser;
 	}

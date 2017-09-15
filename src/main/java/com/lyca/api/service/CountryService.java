@@ -49,4 +49,6 @@ public interface CountryService extends CRUDService<Country> {
 	public JSONObject getCountryById(JSONObject country);
 
 	public Country getCountry(Integer countryId);
+
+	public Country findByIsoCode(String string);
 }
